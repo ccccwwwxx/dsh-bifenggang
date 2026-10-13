@@ -1,40 +1,108 @@
 // Provider + 模型选择器。
-// 约定：provider 下拉列出全部已注册 provider（API 与订阅套餐并列）；
-// 模型必须是「选择」而非手填 —— 由 40-settings.js 通过 models RPC 拉取后传入。
+// 约定：provider 下拉把全部已注册 provider（API 与订阅套餐）并列展示；
+// 模型一律「下拉选择」，选项由 40-settings.js 通过 models RPC 拉取后传入（models[providerId]）。
+// 降级：providers / 模型拉取失败时下拉仍然可用（可能为空），不阻塞保存。
+//
+// props:
+//   label          — 选择器标题（如「主模型」）
+//   value          — { provider, model, reasoningEffort }
+//   providers      — [{ id, name }]，可为空数组
+//   models         — { [providerId]: [{ id, name }] }
+//   modelsLoading  — 当前 provider 的模型是否正在拉取
+//   modelsError    — 当前 provider 的模型拉取失败信息（无失败时为空串）
+//   onChange       — (nextValue) => void
+//   onNeedModels   — (providerId) => void，切换 provider 时懒加载该 provider 的模型
+//   t / narrow     — 文案函数 / 是否窄屏
 
-function ModelPicker({ label, value, providers, models, onChange, t, narrow }) {
+function ModelPicker(props) {
   const h = React.createElement
-  const providerList = providers || []
-  const providerOptions = providerList.map((p) =>
-    h('option', { key: p.id, value: p.id }, p.name || p.id))
-  const modelList = models?.[value.provider] || []
-  const knownModel = modelList.some((m) => m.id === value.model)
-  const modelOptions = modelList.map((m) =>
-    h('option', { key: m.id, value: m.id }, m.name || m.id))
-  const selectStyle = narrow ? { width: '100%', marginBottom: 4 } : { marginRight: 6 }
+  const { label, value, providers, models, modelsLoading, modelsError, onChange, onNeedModels, t, narrow } = props
+  const v = value || {}
+  const providerList = Array.isArray(providers) ? providers : []
 
-  return h('div', { style: { margin: '4px 0' } },
-    h('label', { style: { display: 'block', fontSize: '12px', color: '#888' } }, label),
-    h('select', {
-      value: value.provider || '',
-      onChange: (e) => onChange({ ...value, provider: e.target.value, model: '' }),
-      style: selectStyle,
-    }, h('option', { value: '' }, t('pickProvider')), ...providerOptions),
-    h('select', {
-      value: value.model || '',
-      onChange: (e) => onChange({ ...value, model: e.target.value }),
-      style: selectStyle,
-    },
-      h('option', { value: '' }, t('pickModel')),
-      // 当前值不在目录里时保留一项，避免选择器显示为空。
-      value.model && !knownModel ? h('option', { key: value.model, value: value.model }, value.model) : null,
-      ...modelOptions,
+  // provider 选项：显示 name || id，按 id 去重（防止目录重复导致 React key 冲突）。
+  const seenProviders = Object.create(null)
+  const providerOptions = []
+  for (const p of providerList) {
+    const id = p && (p.id || p.name) ? String(p.id || p.name) : ''
+    if (!id || seenProviders[id]) continue
+    seenProviders[id] = true
+    providerOptions.push(h('option', { key: 'p:' + id, value: id }, String((p && p.name) || id)))
+  }
+  // 配置里已选的 provider 不在目录中（目录失败 / 未列出）时保留一项，避免选择器显示为空。
+  const providerMissing = Boolean(v.provider) && !seenProviders[String(v.provider)]
+
+  // 模型选项：当前 provider 的目录；目录里没有当前值时额外保留一项。
+  const modelList = models && Array.isArray(models[v.provider]) ? models[v.provider] : []
+  const modelOptions = []
+  const seenModels = Object.create(null)
+  for (const m of modelList) {
+    const id = m && (m.id || m.name) ? String(m.id || m.name) : ''
+    if (!id || seenModels[id]) continue
+    seenModels[id] = true
+    modelOptions.push(h('option', { key: 'm:' + id, value: id }, String((m && m.name) || id)))
+  }
+  const modelMissing = Boolean(v.model) && !seenModels[String(v.model)]
+
+  const busy = modelsLoading === true
+  const failed = modelsError ? String(modelsError) : ''
+
+  // 模型下拉的第一项：未选 provider / 拉取中 / 失败 / 无模型时给出对应占位，避免空下拉。
+  let modelPlaceholder
+  if (!v.provider) modelPlaceholder = t('pickProviderFirst')
+  else if (failed) modelPlaceholder = t('modelsLoadFailed')
+  else if (busy) modelPlaceholder = t('modelsLoading')
+  else if (modelOptions.length === 0) modelPlaceholder = t('noModels')
+  else modelPlaceholder = t('pickModel')
+
+  const modelChildren = []
+  modelChildren.push(h('option', { key: '__placeholder', value: '' }, modelPlaceholder))
+  if (modelMissing) {
+    modelChildren.push(h('option', { key: '__current', value: String(v.model) }, String(v.model)))
+  }
+  for (const opt of modelOptions) modelChildren.push(opt)
+
+  // 窄屏：三个控件全宽堆叠；宽屏：同一行等宽伸缩，禁止横向溢出。
+  const rowStyle = narrow
+    ? { margin: '4px 0' }
+    : { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', margin: '4px 0' }
+  const ctrlStyle = narrow
+    ? { display: 'block', width: '100%', maxWidth: '100%', boxSizing: 'border-box', marginBottom: 6 }
+    : { flex: '1 1 0', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }
+
+  return h('div', null,
+    label ? h('label', { style: { display: 'block', fontSize: '12px', color: '#888', marginTop: 4 } }, label) : null,
+    h('div', { style: rowStyle },
+      h('select', {
+        'aria-label': t('pickProvider'),
+        title: v.provider || '',
+        value: v.provider || '',
+        style: ctrlStyle,
+        onChange: (e) => {
+          const next = e.target.value
+          // 切换 provider 必须清空 model，避免 provider/model 不匹配。
+          onChange({ ...v, provider: next, model: '' })
+          if (next && onNeedModels) onNeedModels(next)
+        },
+      },
+        h('option', { key: '__pick', value: '' }, t('pickProvider')),
+        providerMissing ? h('option', { key: '__current', value: String(v.provider) }, String(v.provider)) : null,
+        ...providerOptions,
+      ),
+      h('select', {
+        'aria-label': label ? label + ' · ' + t('pickModel') : t('pickModel'),
+        title: failed || v.model || '',
+        value: v.model || '',
+        style: ctrlStyle,
+        onChange: (e) => onChange({ ...v, model: e.target.value }),
+      }, ...modelChildren),
+      h('select', {
+        'aria-label': label ? label + ' · ' + t('effortDefault') : t('effortDefault'),
+        value: v.reasoningEffort || '',
+        style: ctrlStyle,
+        onChange: (e) => onChange({ ...v, reasoningEffort: e.target.value }),
+      }, ['', 'low', 'medium', 'high', 'xhigh', 'max'].map((e) =>
+        h('option', { key: e || 'default', value: e }, e || t('effortDefault')))),
     ),
-    h('select', {
-      value: value.reasoningEffort || '',
-      onChange: (e) => onChange({ ...value, reasoningEffort: e.target.value }),
-      style: selectStyle,
-    }, ['', 'low', 'medium', 'high', 'xhigh', 'max'].map((e) =>
-      h('option', { key: e || 'default', value: e }, e || t('effortDefault')))),
   )
 }

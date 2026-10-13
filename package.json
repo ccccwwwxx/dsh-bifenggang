@@ -16,7 +16,8 @@
   ],
   "scripts": {
     "build": "node src/build-client.mjs",
-    "check": "node --check lib/index.js && node --check lib/client.js && node --check lib/text.js"
+    "check": "node --check lib/index.js && node --check lib/client.js && node --check lib/text.js",
+    "verify": "node scripts/verify.mjs"
   },
   "dsh": {
     "bundle": {

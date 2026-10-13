@@ -1,0 +1,94 @@
+// 仓库自检：文案 key 完整性、RPC 契约一致性、生成物新鲜度。
+// 用法：node scripts/verify.mjs   （在 dsh-bifenggang 目录下运行；退出码非 0 表示失败）
+import { readFileSync, readdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+import { execFileSync } from 'node:child_process'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const root = join(here, '..')
+const clientDir = join(root, 'src', 'client')
+
+const failures = []
+const notes = []
+const ok = (msg) => notes.push(`  ok   ${msg}`)
+const bad = (msg) => failures.push(`  FAIL ${msg}`)
+
+// ---------- 1. 文案 key ----------
+const { zh, en, DEFAULTS } = await import(new URL('../lib/text.js', import.meta.url))
+
+const parts = readdirSync(clientDir).filter((f) => f.endsWith('.js')).sort()
+const used = new Set()
+for (const part of parts) {
+  const code = readFileSync(join(clientDir, part), 'utf8')
+  for (const m of code.matchAll(/(?<![A-Za-z0-9_$])t\(\s*'([A-Za-z][A-Za-z0-9_]*)'\s*\)/g)) used.add(m[1])
+}
+const missing = [...used].filter((k) => !(k in zh) || !(k in en)).sort()
+if (missing.length) bad(`client 使用了未定义文案 key: ${missing.join(', ')}`)
+else ok(`全部 ${used.size} 个 client 文案 key 在 zh/en 均有定义`)
+
+const zhOnly = Object.keys(zh).filter((k) => !(k in en))
+const enOnly = Object.keys(en).filter((k) => !(k in zh))
+if (zhOnly.length || enOnly.length) bad(`zh/en 双语不对称: zh-only=[${zhOnly}] en-only=[${enOnly}]`)
+else ok(`zh/en 双语对称（各 ${Object.keys(zh).length} 个 key）`)
+
+// ---------- 2. RPC 契约一致性 ----------
+const nodeSrc = readFileSync(join(root, 'lib', 'index.js'), 'utf8')
+const clientSrc = parts.map((f) => readFileSync(join(clientDir, f), 'utf8')).join('\n')
+
+const clientRpcs = new Set()
+for (const m of clientSrc.matchAll(/dsh-peak-valley-router\.([A-Za-z][A-Za-z0-9_]*)/g)) clientRpcs.add(m[1])
+const nodeRpcs = new Set()
+// handlers 对象里的顶层方法：形如 `  get: async (payload) => {`
+for (const m of nodeSrc.matchAll(/^\s{6}([A-Za-z][A-Za-z0-9_]*):\s*async\s*\(/gm)) nodeRpcs.add(m[1])
+
+const missingOnHost = [...clientRpcs].filter((m) => !nodeRpcs.has(m)).sort()
+const missingOnClient = [...nodeRpcs].filter((m) => !clientRpcs.has(m)).sort()
+if (missingOnHost.length) bad(`client 调用了 node 未实现的方法: ${missingOnHost.join(', ')}`)
+else ok(`client 调用的 ${clientRpcs.size} 个 RPC 在 node 端均有 handler`)
+if (missingOnClient.length) ok(`node 端额外方法（client 未用）: ${missingOnClient.join(', ')}`)
+
+// ---------- 3. 关键不变式 ----------
+const must = [
+  [/export const inject = \['llm'\]/, 'export const inject = ["llm"] 存在（否则 ctx.llm 取不到）'],
+  [/agent\/request/, 'agent/request 覆盖会话已选模型'],
+  [/\{ global: true, prepend: true \}/, 'agent/request 监听带 { global: true, prepend: true }'],
+]
+for (const [re, label] of must) {
+  if (re.test(nodeSrc)) ok(label)
+  else bad(`缺失不变式: ${label}`)
+}
+const forbidden = [
+  [/llm\/stream/, 'llm/stream 旧方案残留'],
+  [/registerAdapter/, 'registerAdapter 残留（避峰岗不得注册为 provider）'],
+  [/BifenggangAdapter/, 'BifenggangAdapter 残留'],
+]
+for (const [re, label] of forbidden) {
+  if (re.test(nodeSrc)) bad(label)
+  else ok(`无残留: ${label}`)
+}
+if (/conversation\.input\.model/.test(clientSrc)) bad('有代码注册进 conversation.input.model（不得改动会话模型选择器）')
+else ok('未触碰 conversation.input.model 插槽')
+
+// ---------- 4. 生成物新鲜度 ----------
+const before = readFileSync(join(root, 'lib', 'client.js'))
+execFileSync(process.execPath, [join(root, 'src', 'build-client.mjs')], { cwd: root, stdio: 'pipe' })
+const after = readFileSync(join(root, 'lib', 'client.js'))
+if (before.equals(after)) ok('lib/client.js 与 src/client 源一致（产物新鲜）')
+else bad('lib/client.js 与 src/client 源不一致：需要重新构建并提交')
+
+// ---------- 5. 默认定义 ----------
+if (DEFAULTS.strategies.length > 0 && (!DEFAULTS.advancedSupport?.provider || !DEFAULTS.advancedSupport?.model)) {
+  bad('DEFAULTS 有策略但缺高级模型支援')
+} else {
+  ok(`DEFAULTS: ${DEFAULTS.strategies.length} 条策略, 高级模型支援 ${DEFAULTS.advancedSupport.provider}/${DEFAULTS.advancedSupport.model}`)
+}
+
+// ---------- 结果 ----------
+console.log(notes.join('\n'))
+if (failures.length) {
+  console.log(failures.join('\n'))
+  console.log(`\nverify: ${failures.length} 项失败`)
+  process.exit(1)
+}
+console.log('\nverify: 全部通过')

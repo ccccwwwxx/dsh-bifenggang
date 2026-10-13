@@ -35,3 +35,93 @@ function useIsNarrow() {
   }, [])
   return narrow
 }
+
+// ---- 「启用避峰岗」开关的共享状态源 ----
+// 侧边栏入口与 composer 备用入口必须读写同一份状态：两边各自 rpc.get 会撕裂状态，
+// 所以这里放一个极简订阅源，由 registerToggle 创建一次、注入给两个入口。
+
+function peakRoutingErrorText(error) {
+  if (error === null || error === undefined) return ''
+  if (typeof error === 'string') return error
+  if (typeof error.message === 'string' && error.message !== '') return error.message
+  return String(error)
+}
+
+// rpc.get() -> { config, enabled }；rpc.toggle(enabled) -> { enabled }（见 90-apply.js / lib/index.js）。
+function createPeakRoutingStore(api) {
+  const listeners = new Set()
+  let state = { enabled: false, ready: false, busy: false, failed: false, error: '' }
+  let loading = null
+
+  const snapshot = () => ({ ...state })
+  const publish = (patch) => {
+    state = { ...state, ...patch }
+    const view = snapshot()
+    // 订阅者（React setState）抛错不得影响其他订阅者，更不得冒泡到开关本身。
+    for (const listener of Array.from(listeners)) {
+      try {
+        listener(view)
+      } catch (err) {
+        console.error('[peak-valley-router] toggle subscriber failed', err)
+      }
+    }
+  }
+
+  const read = async () => {
+    try {
+      const value = await api.get()
+      const enabled = Boolean(value && value.enabled)
+      publish({ enabled, ready: true, busy: false, failed: false, error: '' })
+      return enabled
+    } catch (err) {
+      // 读取失败：保留本地状态，只标记非致命失败（开关仍然可点）。
+      publish({ ready: true, busy: false, failed: true, error: peakRoutingErrorText(err) })
+      return undefined
+    }
+  }
+
+  return {
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    get: snapshot,
+    // 两个入口共用同一次首次读取（重复挂载不会重复发 rpc.get）。
+    ensureLoaded() {
+      if (loading === null) loading = read()
+      return loading
+    },
+    async toggle(next) {
+      const before = state.enabled
+      const desired = typeof next === 'boolean' ? next : !before
+      if (state.busy) return before
+      publish({ enabled: desired, busy: true, failed: false, error: '' }) // 乐观更新
+      try {
+        const value = await api.toggle(desired)
+        const confirmed = value && typeof value.enabled === 'boolean' ? value.enabled : desired
+        publish({ enabled: confirmed, busy: false, failed: false, error: '' }) // 以服务端返回值为准
+        return confirmed
+      } catch (err) {
+        // 失败：回滚到点击前的状态，并给出可展示的非致命错误文本。
+        publish({ enabled: before, busy: false, failed: true, error: peakRoutingErrorText(err) })
+        return before
+      }
+    },
+  }
+}
+
+// 订阅共享 store；首次挂载触发一次共享 rpc.get()。
+function usePeakRouting(store) {
+  const [view, setView] = useState(() => (store ? store.get() : null))
+  useEffect(() => {
+    if (!store) return undefined
+    setView(store.get())
+    const off = store.subscribe(setView)
+    store.ensureLoaded()
+    return off
+  }, [store])
+  const toggle = useCallback((next) => (store ? store.toggle(next) : Promise.resolve(false)), [store])
+  return { view, toggle }
+}
