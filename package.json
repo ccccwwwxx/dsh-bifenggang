@@ -11,8 +11,13 @@
   },
   "files": [
     "lib",
+    "src",
     "cordis.patch.yml"
   ],
+  "scripts": {
+    "build": "node src/build-client.mjs",
+    "check": "node --check lib/index.js && node --check lib/client.js && node --check lib/text.js"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
