@@ -1,44 +1,8 @@
 # Multi-model routing policy for DeepSeek Harness (dsh-peak-valley-router).
 #
-# Ordered strategies; the first match wins. Each strategy has a primary model
-# (off-peak) and an optional peak sub-window with a secondary model. The
-# `exclusive` selection is the fallback when NO strategy matches, and is
-# REQUIRED whenever strategies are configured.
-#
-# A user's explicit per-session model choice is stored on the session and is
-# never touched, so it always wins.
+# Default definitions (strategies + advanced model support) and all UI text are
+# maintained in lib/text.js — the single source. The GUI's policy.json overrides
+# these defaults. A user's explicit per-session model choice always wins.
 - insert:
     - id: dsh-peak-valley-router
       name: dsh-peak-valley-router
-      config:
-        utcOffsetMinutes: 480
-        holidays:
-          - [2026, 10, 1]
-          - [2026, 10, 2]
-          - [2026, 10, 3]
-          - [2026, 10, 4]
-          - [2026, 10, 5]
-          - [2026, 10, 6]
-          - [2026, 10, 7]
-          - [2026, 10, 8]
-          - [2027, 1, 1]
-          - [2027, 1, 2]
-          - [2027, 1, 3]
-        strategies:
-          - name: "避峰岗"
-            description: "工作日白天避开 DeepSeek 高峰，峰时用 ChatGPT Plus"
-            weekdays: [1, 2, 3, 4, 5]
-            primary:
-              provider: deepseek-official
-              model: deepseek-flash
-              reasoningEffort: high
-            peak:
-              enabled: true
-              windows: [["09:00", "12:00"], ["14:00", "18:00"]]
-              provider: codex
-              model: gpt-5.6-luna
-              reasoningEffort: max
-        exclusive:
-          provider: deepseek-official
-          model: deepseek-flash
-          reasoningEffort: high
