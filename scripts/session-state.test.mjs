@@ -187,6 +187,26 @@ check('toggle without `enabled` flips the global default too (same shape as the 
   eq(second.value.enabled, false, 'flip on -> off')
 })
 
+check('a decoupled session keeps its own value across global flips (both directions)', async () => {
+  // The intended model: the global switch is the master for sessions that FOLLOW it,
+  // and a session that was individually changed ("decoupled") is not carried along
+  // by later global flips. Re-coupling returns it to the master.
+  const host = makeHostWithListener({ enabled: true })
+  await host.call('toggle', { enabled: false, sessionId: 'sessionB' }) // decouple B at OFF
+  if (await host.route('sessionB', SEED) !== SEED) throw new Error('B must be off while decoupled at OFF')
+  await host.call('toggle', { enabled: false }) // global off
+  if (await host.route('sessionB', SEED) !== SEED) throw new Error('B must not start routing when the global goes off')
+  await host.call('toggle', { enabled: true }) // global sweeps back on
+  if (await host.route('sessionB', SEED) !== SEED) throw new Error('B must NOT follow the sweep back on')
+
+  await host.call('toggle', { enabled: true, sessionId: 'sessionC' }) // decouple C at ON
+  await host.call('toggle', { enabled: false }) // global off
+  if (await host.route('sessionC', SEED) === SEED) throw new Error('C must keep routing although the global went off')
+
+  await host.call('toggle', { sessionId: 'sessionC', inherit: true }) // re-couple
+  if (await host.route('sessionC', SEED) !== SEED) throw new Error('after re-coupling, C must follow the global (OFF)')
+})
+
 check('the override map is bounded and evicts the least recently written session', async () => {
   const cap = 500
   const host = makeHostWithListener({ enabled: false })

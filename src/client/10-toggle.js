@@ -50,10 +50,19 @@ const PEAK_ROUTING_CSS = [
   '.dsh-peak-chip-label{max-width:84px;overflow:hidden;text-overflow:ellipsis}',
   '@media (max-width:420px){.dsh-peak-chip-label{display:none}}',
   // 会话列表行首小灯（sidebar.session.row.leading）。「微微亮蓝光」：小圆点 + 柔和外发光，
-  // 并做极缓慢的呼吸；尊重 prefers-reduced-motion。
+  // 并做极缓慢的呼吸；尊重 prefers-reduced-motion。已解耦的会话多一圈淡环做区分。
   '.dsh-peak-light{display:block;flex:none;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-business-primary,#4c8dff);box-shadow:0 0 4px rgba(76,141,255,.75),0 0 1px rgba(76,141,255,.9);opacity:.85}',
+  '.dsh-peak-light[data-decoupled="true"]{box-shadow:0 0 4px rgba(76,141,255,.75),0 0 1px rgba(76,141,255,.9),0 0 0 2px rgba(76,141,255,.2)}',
   '@keyframes dsh-peak-breathe{0%,100%{opacity:.5}50%{opacity:1}}',
   '@media (prefers-reduced-motion:no-preference){.dsh-peak-light{animation:dsh-peak-breathe 2.6s ease-in-out infinite}}',
+  // 「全局解耦」小开关：两个圆环相接 = 跟随全局；分开 = 已解耦。纯 CSS 画，不引图标依赖。
+  '.dsh-peak-link{position:relative;flex:none;width:14px;height:12px}',
+  '.dsh-peak-link::before,.dsh-peak-link::after{content:"";position:absolute;top:2.5px;width:6px;height:6px;box-sizing:border-box;border:1.2px solid currentColor;border-radius:50%;transition:transform .12s ease}',
+  '.dsh-peak-link::before{left:0}',
+  '.dsh-peak-link::after{right:0}',
+  '.dsh-peak-decouple[data-on="true"] .dsh-peak-link::before{transform:translateX(-2px)}',
+  '.dsh-peak-decouple[data-on="true"] .dsh-peak-link::after{transform:translateX(2px)}',
+  '.dsh-peak-decouple[data-on="true"]{color:var(--dsw-alias-state-business-primary,#4c8dff);border-color:currentColor}',
 // 接管选择器（审计后收窄）：只用「composer 卡片 + 模型触发器类片段」的组合，
 // 不再用 `button[aria-haspopup="menu"]` —— 那条虽然在本构建无损，但未来 composer 里
 // 新增任何菜单按钮都会被一并禁用。哈希类名是构建生成的，DSH 升级换哈希后本条自然
@@ -185,7 +194,14 @@ function usePeakToggle(deps) {
   const stateText = sessionId
     ? (enabled ? t('sessionToggleOn') : t('sessionToggleOff'))
     : (enabled ? t('toggleOn') : t('toggleOff'))
-  const hint = sessionId ? t('sessionToggleHint') : t('toggleHint')
+  // 全局入口在提示里带上「有多少会话已解耦」——否则解耦过的会话在全局侧完全不可见。
+  const decoupledCount = !sessionId && view.sessions && typeof view.sessions === 'object'
+    ? Object.keys(view.sessions).length
+    : 0
+  const baseHint = sessionId ? t('sessionToggleHint') : t('toggleHint')
+  const hint = decoupledCount > 0
+    ? baseHint + ' ' + t('decoupledCount', { count: decoupledCount })
+    : baseHint
   const errorText = failed && view.error ? String(view.error) : ''
   const title = errorText === '' ? hint : hint + ' — ' + errorText
   const ariaLabel = label + ' · ' + stateText
@@ -213,15 +229,58 @@ function PeakSessionLight(props) {
   const h = React.createElement
   const store = props ? props.store : null
   const sessionId = props && typeof props.sessionId === 'string' ? props.sessionId : ''
-  const on = usePeakSession(store, sessionId)
-  if (!sessionId || !on) return null
-  const title = t0(props, 'sessionLightTitle')
+  const state = usePeakSessionState(store, sessionId)
+  if (!sessionId || !state.on) return null
+  const title = t0(props, state.decoupled ? 'sessionLightTitleDecoupled' : 'sessionLightTitle')
   return h('span', {
     className: 'dsh-peak-light',
     role: 'img',
     'aria-label': title,
     title,
+    ...(state.decoupled ? { 'data-decoupled': 'true' } : {}),
   })
+}
+
+// 「全局解耦」小开关（composer 输入区，session 作用域）：
+//   跟随中 -> 点一下解耦：写入「当前有效值」作为本会话的独立值，可见状态不变，
+//             但此后的全局切换不再影响本会话；
+//   已解耦 -> 点一下接回：清掉独立值，重新跟随全局。
+// 两种情况下「此刻是否生效」都不变——它只切换连接关系，不切换开关本身。
+function PeakDecoupleToggle(props) {
+  const h = React.createElement
+  const store = props ? props.store : null
+  const sessionId = props && typeof props.sessionId === 'string' ? props.sessionId : ''
+  const t = (key) => t0(props, key)
+  const { view, toggle } = usePeakRouting(store)
+
+  // 与开关一致：首个 rpc.get 返回前不渲染，避免先显示错误状态。
+  if (!view || view.ready !== true || !sessionId) return null
+
+  const decoupled = Boolean(store && store.hasOverride(sessionId))
+  const effective = Boolean(peakSessionEffective(view.enabled, view.sessions, sessionId))
+  const title = t(decoupled ? 'decoupleHintDecoupled' : 'decoupleHintCoupled')
+
+  const onClick = () => {
+    const pending = decoupled
+      ? toggle(undefined, sessionId, true) // 接回：清除覆盖，跟随全局
+      : toggle(effective, sessionId) // 解耦：把当前有效值固定为本会话独立值
+    if (pending && typeof pending.catch === 'function') pending.catch(() => {})
+  }
+
+  return h('button', {
+    type: 'button',
+    role: 'switch',
+    'aria-checked': decoupled ? 'true' : 'false',
+    'aria-label': t('decoupleLabel'),
+    title,
+    'data-on': decoupled ? 'true' : 'false',
+    disabled: view.busy === true,
+    onClick,
+    className: 'dsh-peak-chip dsh-peak-decouple',
+  }, [
+    h('span', { key: 'icon', className: 'dsh-peak-link', 'aria-hidden': 'true' }),
+    h('span', { key: 'label', className: 'dsh-peak-chip-label' }, t(decoupled ? 'decoupledLabel' : 'decoupleLabel')),
+  ])
 }
 
 // 侧边栏入口：wide=true 展开态显示标签+开关+状态（开启时加一行提示），
@@ -331,6 +390,15 @@ function registerToggle(ctx, deps) {
     order: 40,
     inject: (sessionId) => ({ rpc: api, t, store, sessionId: typeof sessionId === 'string' ? sessionId : '' }),
   }, PeakComposerToggle))
+
+  // 「全局解耦」小开关：同一个 session 作用域插槽的第二项（list 槽每项需唯一 id）。
+  // 它只切换「这个会话与全局开关的连接关系」，不切换开关本身。
+  ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
+    name: 'conversation.input.left',
+    id: 'peak-valley-router-decouple',
+    order: 41,
+    inject: (sessionId) => ({ rpc: api, t, store, sessionId: typeof sessionId === 'string' ? sessionId : '' }),
+  }, PeakDecoupleToggle))
 
   // 会话列表行首小灯：sidebar.session.row.leading（list / root）。
   // owner 每次渲染传入 { sessionId }（.recon/workspace.client.js:1755），

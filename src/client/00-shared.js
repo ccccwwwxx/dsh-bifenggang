@@ -217,16 +217,25 @@ function usePeakRouting(store) {
   return { view, toggle }
 }
 
-// 单个会话的有效状态，供会话列表小灯使用。订阅同一份 store，不额外发 RPC。
-function usePeakSession(store, sessionId) {
-  const [on, setOn] = useState(() => (store ? store.sessionState(sessionId) : false))
+// 单个会话的完整状态：on = 此刻是否生效；decoupled = 是否已「全局解耦」
+// （即存在显式覆盖，不再跟随全局开关）。会话列表小灯与 composer 的两个控件都用它，
+// 共用一次订阅。
+function usePeakSessionState(store, sessionId) {
+  const read = () => {
+    const view = store ? store.get() : null
+    return {
+      on: Boolean(view && peakSessionEffective(view.enabled, view.sessions, sessionId)),
+      decoupled: Boolean(view && store && store.hasOverride(sessionId)),
+    }
+  }
+  const [state, setState] = useState(read)
   useEffect(() => {
     if (!store) return undefined
-    const sync = (view) => setOn(Boolean(view && peakSessionEffective(view.enabled, view.sessions, sessionId)))
-    sync(store.get())
+    const sync = () => setState(read())
+    sync()
     const off = store.subscribe(sync)
     store.ensureLoaded()
     return off
   }, [store, sessionId])
-  return on
+  return state
 }

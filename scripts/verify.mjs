@@ -22,7 +22,8 @@ const parts = readdirSync(clientDir).filter((f) => f.endsWith('.js')).sort()
 const used = new Set()
 for (const part of parts) {
   const code = readFileSync(join(clientDir, part), 'utf8')
-  for (const m of code.matchAll(/(?<![A-Za-z0-9_$])t\(\s*'([A-Za-z][A-Za-z0-9_]*)'\s*\)/g)) used.add(m[1])
+  // 同时覆盖 t('key') 与带参数的 t('key', { … }) —— 后者曾被漏掉。
+  for (const m of code.matchAll(/(?<![A-Za-z0-9_$])t\(\s*'([A-Za-z][A-Za-z0-9_]*)'/g)) used.add(m[1])
 }
 const missing = [...used].filter((k) => !(k in zh) || !(k in en)).sort()
 if (missing.length) bad(`client 使用了未定义文案 key: ${missing.join(', ')}`)
