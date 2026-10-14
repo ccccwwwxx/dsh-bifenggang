@@ -152,6 +152,18 @@ check('toggle with no `enabled` flips the effective session value', async () => 
   eq(second.value.sessionEnabled, false, 'flip on -> off')
 })
 
+check('an id like "__proto__" is stored as a normal own override', async () => {
+  // On a plain object, `sessions['__proto__'] = true` is swallowed by the
+  // prototype setter: the override would look saved and never gate anything.
+  const host = makeHostWithListener({ enabled: false })
+  const res = await host.call('toggle', { enabled: true, sessionId: '__proto__' })
+  eq(res.value.sessionEnabled, true, 'toggle reports it on')
+  if (await host.route('__proto__', SEED) === SEED) throw new Error('the override must actually gate routing')
+  const st = host.readState()
+  if (!Object.prototype.hasOwnProperty.call(st.sessions, '__proto__')) throw new Error('must be an own key on disk')
+  eq(st.sessions['__proto__'], true, 'persisted value')
+})
+
 check('the override map is bounded and evicts the least recently written session', async () => {
   const cap = 500
   const host = makeHostWithListener({ enabled: false })
