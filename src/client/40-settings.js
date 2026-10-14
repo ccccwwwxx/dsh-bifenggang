@@ -31,7 +31,9 @@ function pvSaveErrorText(raw, t) {
   const re = /strategy #(\d+)\s+([^;]+?)(?=\s+—|;|$)/g
   let match
   while ((match = re.exec(text)) !== null) {
-    parts.push(t('errStrategy', { index: match[1], issue: pvStrategyIssueText(match[2].trim(), t) }))
+    // 先从措辞里剥掉「(+N more)」，否则未知措辞会把它并进原文再追加一次计数。
+    const issue = match[2].replace(/\s*\(\+\d+ more\)\s*$/, '').trim()
+    parts.push(t('errStrategy', { index: match[1], issue: pvStrategyIssueText(issue, t) }))
   }
   if (parts.length === 0) return text
   const more = /\(\+(\d+) more\)/.exec(text)
@@ -188,12 +190,19 @@ function PolicySettingsSection({ rpc, t }) {
   const strategies = Array.isArray(config.strategies) ? config.strategies : []
   const advancedSupport = config.advancedSupport || config.exclusive || {}
 
+  // 任何编辑都清掉「已保存」与上一次的错误：成功提示只在表单内容仍等于
+  // 已保存内容时才成立，否则会拿旧时间误导用户以为当前编辑已经存上了。
+  const updateConfig = (next) => {
+    setSavedAt('')
+    setSaveError('')
+    setConfig(next)
+  }
   const updateStrategy = (i, next) => {
     const list = strategies.slice()
     list[i] = next
-    setConfig({ ...config, strategies: list })
+    updateConfig({ ...config, strategies: list })
   }
-  const addStrategy = () => setConfig({
+  const addStrategy = () => updateConfig({
     ...config,
     strategies: [...strategies, {
       name: '',
@@ -203,7 +212,7 @@ function PolicySettingsSection({ rpc, t }) {
       peak: { enabled: false, windows: [['09:00', '12:00'], ['14:00', '18:00']] },
     }],
   })
-  const removeStrategy = (i) => setConfig({ ...config, strategies: strategies.filter((_, j) => j !== i) })
+  const removeStrategy = (i) => updateConfig({ ...config, strategies: strategies.filter((_, j) => j !== i) })
 
   const save = async () => {
     setSaving(true)
@@ -262,7 +271,7 @@ function PolicySettingsSection({ rpc, t }) {
         modelsLoading: modelsLoading[advancedSupport.provider],
         modelsError: modelsError[advancedSupport.provider],
         onNeedModels: fetchModels,
-        onChange: (next) => setConfig({ ...config, advancedSupport: next }),
+        onChange: (next) => updateConfig({ ...config, advancedSupport: next }),
         t,
         narrow,
       }),

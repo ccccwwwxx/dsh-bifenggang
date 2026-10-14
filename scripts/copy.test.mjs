@@ -43,6 +43,38 @@ check('zh and en declare exactly the same keys', () => {
   const onlyEn = b.filter((k) => !a.includes(k))
   if (onlyZh.length || onlyEn.length) throw new Error(`zh-only: [${onlyZh}], en-only: [${onlyEn}]`)
 })
+check('weekdayShort is a 7-item comma-separated list in both languages', () => {
+  for (const [lang, dict] of [['zh', zh], ['en', en]]) {
+    const parts = String(dict.weekdayShort ?? '').split(',')
+    if (parts.length !== 7) throw new Error(`${lang}: expected 7 entries, got ${parts.length} (${JSON.stringify(dict.weekdayShort)})`)
+    if (parts.some((p) => !p.trim())) throw new Error(`${lang}: empty weekday entry in ${JSON.stringify(dict.weekdayShort)}`)
+  }
+  if (zh.weekdayShort === en.weekdayShort) throw new Error('weekdayShort must differ between languages')
+})
+
+// The user requirement is that ALL interface text is maintained in one file. This
+// catches the failure mode the reviewer found (a Chinese weekday array hardcoded
+// in the client): once block comments are removed and each line is cut at its
+// first `//`, no CJK literal may remain in the client sources. CJK outside
+// text.js is, in practice, always UI copy — code comments are exempt by
+// construction. (A `//` inside a string literal would only ever cause a false
+// NEGATIVE here, never a false positive, which is the safe direction for a guard.)
+check('no hardcoded CJK copy is left in the client sources', () => {
+  const stripBlockComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '')
+  const codePart = (line) => {
+    const i = line.indexOf('//')
+    return i >= 0 ? line.slice(0, i) : line
+  }
+  const offenders = []
+  for (const file of readdirSync(clientDir)) {
+    const stripped = stripBlockComments(readFileSync(join(clientDir, file), 'utf8'))
+    stripped.split('\n').forEach((line, i) => {
+      if (/[\u4e00-\u9fff]/.test(codePart(line))) offenders.push(`${file}:${i + 1} ${line.trim()}`)
+    })
+  }
+  if (offenders.length) throw new Error(`hardcoded CJK copy:\n       ${offenders.join('\n       ')}`)
+})
+
 check('every placeholder used by the client exists in both languages', () => {
   // Placeholders the client actually passes; a typo would silently render "{time}".
   const expected = { saved: ['time'], saveFailed: ['detail'], errStrategy: ['index', 'issue'], errMore: ['count'] }
@@ -124,6 +156,11 @@ check('an unrecognized message is shown verbatim, never swallowed', () => {
 check('an unrecognized ISSUE keeps the server wording inside the localized frame', () => {
   const raw = `${PREFIX}strategy #3 has an unexpected problem${SUFFIX}`
   eq(pvSaveErrorText(raw, tZh), '第 3 条策略：has an unexpected problem', 'zh')
+})
+check('an unrecognized issue does not duplicate the "+N more" counter', () => {
+  const raw = `${PREFIX}strategy #1 mysterious failure (+2 more)${SUFFIX}`
+  eq(pvSaveErrorText(raw, tZh), '第 1 条策略：mysterious failure（另有 2 条同类问题）', 'zh')
+  eq(pvSaveErrorText(raw, tEn), 'Strategy #1 mysterious failure (+2 more)', 'en')
 })
 
 for (const [name, fn] of checks) {

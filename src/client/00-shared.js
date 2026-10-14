@@ -4,8 +4,6 @@ const NS = 'settings.peakValley'
 
 const inject = ['slots', 'connection', 'locale']
 
-const WEEKDAY_NAMES = ['', '一', '二', '三', '四', '五', '六', '日']
-
 // 统一解包 { ok, value } 信封；失败时抛出服务端消息。
 function rpc(connection) {
   const call = async (method, payload) => {

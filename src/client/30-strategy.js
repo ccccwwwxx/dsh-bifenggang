@@ -7,6 +7,9 @@ function StrategyEditor({ strategy, providers, models, modelsLoading, modelsErro
   const setPrimary = (primary) => onChange({ ...s, primary })
   const setPeak = (peak) => onChange({ ...s, peak })
   const peak = s.peak || { enabled: false, windows: [['09:00', '12:00'], ['14:00', '18:00']] }
+  // 星期简称同样来自 lib/text.js（单一维护文件）。此前硬编码在客户端，导致英文
+  // 界面仍显示「一…日」。key 缺失时退回数字，避免把 key 名当文案显示出来。
+  const weekdayNames = String(t('weekdayShort') ?? '').split(',')
 
   const nameRow = narrow
     ? { marginBottom: 6 }
@@ -50,7 +53,7 @@ function StrategyEditor({ strategy, providers, models, modelsLoading, modelsErro
             onChange({ ...s, weekdays: [...set].sort() })
           },
         }),
-        h('span', null, WEEKDAY_NAMES[d]),
+        h('span', null, weekdayNames[d - 1] || String(d)),
       )),
     ),
     h(ModelPicker, {
