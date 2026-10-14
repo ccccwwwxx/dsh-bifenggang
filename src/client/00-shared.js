@@ -38,7 +38,11 @@ function weekdayLabels(t) {
 function useContainerWidth(threshold) {
   const [node, setNode] = useState(null)
   const [narrow, setNarrow] = useState(false)
-  const ref = useCallback((next) => setNode(next || null), [])
+  // ref 回调里**同步**测一次：effect 要等绘制之后才跑，本就窄的容器会先闪一帧宽布局。
+  const ref = useCallback((next) => {
+    setNode(next || null)
+    if (next && next.clientWidth > 0) setNarrow(next.clientWidth < threshold)
+  }, [threshold])
   useEffect(() => {
     if (!node) return undefined
     const read = () => {

@@ -27,7 +27,8 @@ function StrategyEditor({ strategy, index, providers, models, modelsLoading, mod
       boxSizing: 'border-box',
     },
   },
-    // 头部：序号 + 名称 + 删除。名称占据剩余宽度，删除按钮不参与压缩。
+    // 头部：序号 + 名称 + 删除。窄容器允许换行（宁可删除键换到下一行，也不把
+    // 名称输入框压成一条缝）。
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: narrow ? 'wrap' : 'nowrap' } },
       h('span', {
         style: {
@@ -45,7 +46,7 @@ function StrategyEditor({ strategy, index, providers, models, modelsLoading, mod
         placeholder: t('strategyName'),
         'aria-label': t('strategyName'),
         onChange: (e) => onChange({ ...s, name: e.target.value }),
-        style: { flex: '1 1 140px', minWidth: 0, boxSizing: 'border-box' },
+        style: { flex: '1 1 180px', minWidth: 0, boxSizing: 'border-box' },
       }),
       h('button', {
         onClick: onRemove,
@@ -118,7 +119,7 @@ function StrategyEditor({ strategy, index, providers, models, modelsLoading, mod
             h('input', {
               value: w[0] || '',
               placeholder: '09:00',
-              'aria-label': t('peakWindows'),
+              'aria-label': t('windowStart'),
               onChange: (e) => setPeak({ ...peak, windows: (peak.windows || []).map((x, j) => j === i ? [e.target.value, x[1]] : x) }),
               style: timeStyle,
             }),
@@ -126,7 +127,7 @@ function StrategyEditor({ strategy, index, providers, models, modelsLoading, mod
             h('input', {
               value: w[1] || '',
               placeholder: '12:00',
-              'aria-label': t('peakWindows'),
+              'aria-label': t('windowEnd'),
               onChange: (e) => setPeak({ ...peak, windows: (peak.windows || []).map((x, j) => j === i ? [x[0], e.target.value] : x) }),
               style: timeStyle,
             }),

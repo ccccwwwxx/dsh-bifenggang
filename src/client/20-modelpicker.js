@@ -84,10 +84,11 @@ function ModelPicker(props) {
     boxSizing: 'border-box',
     textOverflow: 'ellipsis',
   }
-  // 思考档只需要窄栏；等分会让它被拉得很长、值靠左显得空旷。
+  // 思考档只需要窄栏；等分会让它被拉得很长、值靠左显得空旷。给足最小宽度，
+  // 避免「默认思考档」/「Extra high」这类较长标签在原生 select 里被裁切。
   const rowStyle = narrow
     ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6 }
-    : { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(96px, 116px)', gap: 8 }
+    : { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(116px, 140px)', gap: 8 }
 
   const status = failed ? t('modelsLoadFailed') : (busy ? t('modelsLoading') : '')
 

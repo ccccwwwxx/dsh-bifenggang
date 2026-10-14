@@ -79,6 +79,20 @@ check('weekdayLabels returns 7 localized labels and degrades to [] when the key 
   eq(weekdayLabels(() => undefined).length, 0, 'missing value degrades to []')
 })
 
+// Only the LABELS of the reasoning-effort options are localized. If a value were
+// localized too, the saved config would carry a value DSH's own enum does not
+// know, and routing would silently fall back. Guard the enum itself.
+check('reasoning-effort option values are still the DSH enum', () => {
+  const src = readFileSync(join(clientDir, '20-modelpicker.js'), 'utf8')
+  const start = src.indexOf('const effortChoices')
+  if (start < 0) throw new Error('effortChoices not found in 20-modelpicker.js')
+  const end = src.indexOf('\n  ]', src.indexOf('effortMax'))
+  if (end < 0) throw new Error('cannot locate the end of effortChoices')
+  const block = src.slice(start, end + 4)
+  const values = [...block.matchAll(/\['([a-z]*)',\s*t\(/g)].map((m) => m[1])
+  eq(JSON.stringify(values), JSON.stringify(['', 'low', 'medium', 'high', 'xhigh', 'max']), 'effort values')
+})
+
 // The user requirement is that ALL interface text is maintained in one file. This
 // catches the failure mode the reviewer found (a Chinese weekday array hardcoded
 // in the client): once block comments are removed and each line is cut at its
