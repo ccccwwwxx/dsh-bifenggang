@@ -18,7 +18,13 @@ const here = dirname(fileURLToPath(import.meta.url))
 const modPath = join(here, '..', 'lib', 'index.js')
 const mod = await import(pathToFileURL(modPath).href)
 
-const root = join(process.env.TEMP ?? process.env.TMP ?? '.', 'dsh-pv-roundtrip')
+// Unique per run: a fixed path collides when two runs overlap (e.g. `npm run
+// verify` started twice, or a concurrent test suite), because DSH_HOME is
+// process-global and each run wipes the directory at start.
+const root = join(
+  process.env.TEMP ?? process.env.TMP ?? '.',
+  `dsh-pv-roundtrip-${process.pid}-${Math.random().toString(36).slice(2, 8)}`,
+)
 const pluginDir = join(root, 'plugins', 'dsh-peak-valley-router')
 rmSync(root, { recursive: true, force: true })
 mkdirSync(pluginDir, { recursive: true })
