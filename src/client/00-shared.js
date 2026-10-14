@@ -21,6 +21,15 @@ function rpc(connection) {
   }
 }
 
+// 星期简称：来自 lib/text.js 的 weekdayShort（单一维护文件，zh `一,二…` / en `Mon,Tue…`）。
+// key 缺失时 DSH 会把 key 名原样返回，此时整体退回空数组，由调用方显示数字，
+// 避免 d=1 把 "weekdayShort" 当成星期的文案渲染出来。
+function weekdayLabels(t) {
+  const raw = t('weekdayShort')
+  if (raw === undefined || raw === null || raw === 'weekdayShort') return []
+  return String(raw).split(',')
+}
+
 // 轻量响应式：视口宽度 <= 720px 视为窄屏（移动端 / 远程连接）。
 function useIsNarrow() {
   const read = () => (typeof window === 'undefined' ? false : window.innerWidth <= 720)

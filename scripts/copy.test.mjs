@@ -52,13 +52,43 @@ check('weekdayShort is a 7-item comma-separated list in both languages', () => {
   if (zh.weekdayShort === en.weekdayShort) throw new Error('weekdayShort must differ between languages')
 })
 
+check('client sources are stored as valid UTF-8', () => {
+  // Without this, a file written in a local code page (e.g. PowerShell's
+  // Add-Content default on a zh-CN host) decodes to U+FFFD and would silently
+  // slip past the CJK scan below.
+  for (const file of readdirSync(clientDir)) {
+    const src = readFileSync(join(clientDir, file), 'utf8')
+    if (src.includes('\uFFFD')) throw new Error(`${file} is not valid UTF-8 (contains U+FFFD)`)
+  }
+})
+
+check('weekdayLabels returns 7 localized labels and degrades to [] when the key is missing', () => {
+  // Same lift-and-evaluate approach as the error mappers: the real client helper
+  // is exercised, not a re-implementation.
+  const sharedSrc = readFileSync(join(clientDir, '00-shared.js'), 'utf8')
+  const weekdayLabels = new Function(`${liftFunction(sharedSrc, 'weekdayLabels')}\nreturn weekdayLabels`)()
+  const zhLabels = weekdayLabels(makeT(zh))
+  const enLabels = weekdayLabels(makeT(en))
+  eq(zhLabels.length, 7, 'zh length')
+  eq(zhLabels[0], '一', 'zh first')
+  eq(enLabels.length, 7, 'en length')
+  eq(enLabels[0], 'Mon', 'en first')
+  eq(enLabels[6], 'Sun', 'en last')
+  // DSH returns the key itself for an unknown key; the helper must not render it.
+  eq(weekdayLabels((k) => k).length, 0, 'unknown key degrades to []')
+  eq(weekdayLabels(() => undefined).length, 0, 'missing value degrades to []')
+})
+
 // The user requirement is that ALL interface text is maintained in one file. This
 // catches the failure mode the reviewer found (a Chinese weekday array hardcoded
 // in the client): once block comments are removed and each line is cut at its
 // first `//`, no CJK literal may remain in the client sources. CJK outside
 // text.js is, in practice, always UI copy — code comments are exempt by
-// construction. (A `//` inside a string literal would only ever cause a false
-// NEGATIVE here, never a false positive, which is the safe direction for a guard.)
+// construction. Full-width punctuation is included: it is just as untranslatable
+// as an ideograph. (Known false negatives, accepted and reported: a `//` inside a
+// string literal truncates that line, and non-UTF-8 bytes are caught by the
+// separate UTF-8 check above rather than here.)
+const CJK = /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/
 check('no hardcoded CJK copy is left in the client sources', () => {
   const stripBlockComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '')
   const codePart = (line) => {
@@ -69,7 +99,7 @@ check('no hardcoded CJK copy is left in the client sources', () => {
   for (const file of readdirSync(clientDir)) {
     const stripped = stripBlockComments(readFileSync(join(clientDir, file), 'utf8'))
     stripped.split('\n').forEach((line, i) => {
-      if (/[\u4e00-\u9fff]/.test(codePart(line))) offenders.push(`${file}:${i + 1} ${line.trim()}`)
+      if (CJK.test(codePart(line))) offenders.push(`${file}:${i + 1} ${line.trim()}`)
     })
   }
   if (offenders.length) throw new Error(`hardcoded CJK copy:\n       ${offenders.join('\n       ')}`)
