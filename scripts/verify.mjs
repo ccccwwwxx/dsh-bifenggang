@@ -107,6 +107,18 @@ if (/function readVersion\(\)/.test(nodeSrc) && /version: VERSION/.test(nodeSrc)
   bad('node 端未从 package.json 读取版本 / 未随 get RPC 下发')
 }
 
+// ---------- 7. 仓库形状 ----------
+// 顶层文件集合是固定的：一次被 shell 吃掉的命令在工作区生成了一个以 JS 片段
+// 命名的空文件，并被 `git add -A` 一起提交了。多出来的顶层文件就是误提交。
+const EXPECTED_ROOT = new Set(['.gitignore', 'CHANGELOG.md', 'README.md', 'SKILL.md', 'cordis.patch.yml', 'package.json'])
+const stray = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
+  .split('\n')
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .filter((file) => !file.includes('/') && !EXPECTED_ROOT.has(file))
+if (stray.length) bad(`仓库顶层出现非预期文件（疑似误提交）: ${stray.join(', ')}`)
+else ok('仓库顶层文件符合预期')
+
 // ---------- 结果 ----------
 console.log(notes.join('\n'))
 if (failures.length) {
