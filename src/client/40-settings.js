@@ -148,11 +148,11 @@ function PolicySettingsSection({ rpc, t }) {
       h('div', { style: { fontSize: '15px', fontWeight: 600, marginBottom: 8 } }, t('title')),
       loadError
         ? h('div', null,
-          h('div', { style: { color: '#c00', fontSize: '13px', marginBottom: 4 } }, t('loadFailed')),
-          h('div', { style: { fontSize: '12px', color: '#888', marginBottom: 8, wordBreak: 'break-word' } }, loadError),
+          h('div', { style: { color: 'var(--dsw-alias-state-error-primary, #c00)', fontSize: '13px', marginBottom: 4 } }, t('loadFailed')),
+          h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, #888)', marginBottom: 8, wordBreak: 'break-word' } }, loadError),
           h('button', { onClick: () => { load() }, style: { fontWeight: 600 } }, t('retry')),
         )
-        : h('div', { style: { fontSize: '13px', color: '#888' } }, t('loading')),
+        : h('div', { style: { fontSize: '13px', color: 'var(--dsw-alias-label-tertiary, #888)' } }, t('loading')),
     )
   }
 
@@ -197,12 +197,12 @@ function PolicySettingsSection({ rpc, t }) {
 
   return h('div', { style: { padding: narrow ? 8 : 12, maxWidth: '100%', boxSizing: 'border-box' } },
     h('div', { style: { fontSize: '15px', fontWeight: 600, marginBottom: 8 } }, t('title')),
-    h('div', { style: { fontSize: '12px', color: '#888', marginBottom: 12 } }, t('subtitle')),
+    h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, #888)', marginBottom: 12 } }, t('subtitle')),
     catalogDegraded ? h('div', {
-      style: { border: '1px solid #e6c473', background: '#fff9e8', borderRadius: 8, padding: 8, marginBottom: 10, maxWidth: '100%', boxSizing: 'border-box' },
+      style: { border: '1px solid var(--dsw-alias-state-warn-primary, #e6c473)', background: 'var(--dsw-alias-bg-layer-1, #fff9e8)', borderRadius: 8, padding: 8, marginBottom: 10, maxWidth: '100%', boxSizing: 'border-box' },
     },
-      h('div', { style: { fontSize: '12px', color: '#8a6100' } }, t('catalogUnavailable')),
-      catalogDetail ? h('div', { style: { fontSize: '11px', color: '#a08447', marginTop: 2, wordBreak: 'break-word' } }, catalogDetail) : null,
+      h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-state-warn-label, #8a6100)' } }, t('catalogUnavailable')),
+      catalogDetail ? h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, #a08447)', marginTop: 2, wordBreak: 'break-word' } }, catalogDetail) : null,
       h('button', { onClick: () => { reloadCatalog() }, style: { marginTop: 6 } }, t('retry')),
     ) : null,
     strategies.map((s, i) => h(StrategyEditor, {
@@ -219,9 +219,9 @@ function PolicySettingsSection({ rpc, t }) {
       narrow,
     })),
     h('button', { onClick: addStrategy, style: { marginBottom: 12 } }, t('addStrategy')),
-    h('div', { style: { border: '1px dashed #bbb', borderRadius: 8, padding: 10, marginBottom: 12, maxWidth: '100%', boxSizing: 'border-box' } },
+    h('div', { style: { border: '1px dashed var(--dsw-alias-border-l3, #bbb)', borderRadius: 8, padding: 10, marginBottom: 12, maxWidth: '100%', boxSizing: 'border-box' } },
       h('div', { style: { fontSize: '13px', fontWeight: 600, marginBottom: 4 } }, t('advancedSupportTitle')),
-      h('div', { style: { fontSize: '12px', color: '#888', marginBottom: 6 } }, t('advancedSupportHint')),
+      h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, #888)', marginBottom: 6 } }, t('advancedSupportHint')),
       h(ModelPicker, {
         label: t('advancedSupportModel'),
         value: advancedSupport,
@@ -235,7 +235,7 @@ function PolicySettingsSection({ rpc, t }) {
         narrow,
       }),
     ),
-    saveError ? h('div', { style: { color: '#c00', fontSize: '12px', marginBottom: 8, wordBreak: 'break-word' } }, saveError) : null,
+    saveError ? h('div', { style: { color: 'var(--dsw-alias-state-error-primary, #c00)', fontSize: '12px', marginBottom: 8, wordBreak: 'break-word' } }, saveError) : null,
     h('button', { onClick: save, disabled: saving, style: { fontWeight: 600 } }, saving ? t('saving') : t('save')),
   )
 }

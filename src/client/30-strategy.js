@@ -17,7 +17,7 @@ function StrategyEditor({ strategy, providers, models, modelsLoading, modelsErro
   const fullInput = { display: 'block', width: '100%', maxWidth: '100%', boxSizing: 'border-box', marginBottom: 6 }
   const wrapRow = { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 6 }
 
-  return h('div', { style: { border: '1px solid #ddd', borderRadius: 8, padding: 10, marginBottom: 10, overflow: 'hidden' } },
+  return h('div', { style: { border: '1px solid var(--dsw-alias-border-l1, #ddd)', borderRadius: 8, padding: 10, marginBottom: 10, overflow: 'hidden' } },
     h('div', { style: nameRow },
       h('input', {
         value: s.name || '',
@@ -28,8 +28,8 @@ function StrategyEditor({ strategy, providers, models, modelsLoading, modelsErro
       h('button', {
         onClick: onRemove,
         style: narrow
-          ? { display: 'block', width: '100%', boxSizing: 'border-box', color: '#c00' }
-          : { flex: '0 0 auto', color: '#c00' },
+          ? { display: 'block', width: '100%', boxSizing: 'border-box', color: 'var(--dsw-alias-state-error-primary, #c00)' }
+          : { flex: '0 0 auto', color: 'var(--dsw-alias-state-error-primary, #c00)' },
       }, t('remove')),
     ),
     h('input', {
@@ -39,7 +39,7 @@ function StrategyEditor({ strategy, providers, models, modelsLoading, modelsErro
       style: fullInput,
     }),
     h('div', { style: wrapRow },
-      h('span', { style: { fontSize: '12px', color: '#888', width: narrow ? '100%' : 'auto', marginRight: narrow ? 0 : 6 } }, t('weekdays')),
+      h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, #888)', width: narrow ? '100%' : 'auto', marginRight: narrow ? 0 : 6 } }, t('weekdays')),
       [1, 2, 3, 4, 5, 6, 7].map((d) => h('label', { key: d, style: { marginRight: 6, whiteSpace: 'nowrap' } },
         h('input', {
           type: 'checkbox',
@@ -75,7 +75,7 @@ function StrategyEditor({ strategy, providers, models, modelsLoading, modelsErro
     ),
     peak.enabled ? h('div', null,
       h('div', { style: { ...wrapRow, marginBottom: 4 } },
-        h('span', { style: { fontSize: '12px', color: '#888', width: narrow ? '100%' : 'auto', marginRight: narrow ? 0 : 6 } }, t('peakWindows')),
+        h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, #888)', width: narrow ? '100%' : 'auto', marginRight: narrow ? 0 : 6 } }, t('peakWindows')),
         (peak.windows || []).map((w, i) => h('span', { key: i, style: { marginRight: 6, whiteSpace: 'nowrap' } },
           h('input', { value: w[0] || '', placeholder: '09:00', onChange: (e) => setPeak({ ...peak, windows: (peak.windows || []).map((x, j) => j === i ? [e.target.value, x[1]] : x) }), style: { width: 52, boxSizing: 'border-box' } }),
           h('span', null, '–'),

@@ -2,7 +2,9 @@
 #
 # Default definitions (strategies + advanced model support) and all UI text are
 # maintained in lib/text.js — the single source. The GUI's policy.json overrides
-# these defaults. A user's explicit per-session model choice always wins.
+# them. Routing is gated by the "启用避峰岗" switch (default off = pure
+# pass-through); while it is ON the plugin also rewrites a model the session
+# already picked, via a prepended `agent/request` listener.
 - insert:
     - id: dsh-peak-valley-router
       name: dsh-peak-valley-router

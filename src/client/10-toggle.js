@@ -49,8 +49,11 @@ const PEAK_ROUTING_CSS = [
   '.dsh-peak-chip[data-on="true"]{color:var(--dsw-alias-state-business-primary,#4c8dff);border-color:currentColor}',
   '.dsh-peak-chip-label{max-width:84px;overflow:hidden;text-overflow:ellipsis}',
   '@media (max-width:420px){.dsh-peak-chip-label{display:none}}',
-  'html[' + PEAK_ROUTING_ATTR + '="on"] [data-composer-card] button[aria-haspopup="menu"],',
-  'html[' + PEAK_ROUTING_ATTR + '="on"] button[class*="_7KE1Ra_trigger"]{',
+// 接管选择器（审计后收窄）：只用「composer 卡片 + 模型触发器类片段」的组合，
+// 不再用 `button[aria-haspopup="menu"]` —— 那条虽然在本构建无损，但未来 composer 里
+// 新增任何菜单按钮都会被一并禁用。哈希类名是构建生成的，DSH 升级换哈希后本条自然
+// 失配并静默降级：视觉变灰消失，但功能性接管（node 端 agent/request 覆盖）不受影响。
+  'html[' + PEAK_ROUTING_ATTR + '="on"] [data-composer-card] button[class*="_7KE1Ra_trigger"]{',
   'opacity:.45;filter:grayscale(1);pointer-events:none !important;cursor:not-allowed;',
   '}',
 ].join('\n')

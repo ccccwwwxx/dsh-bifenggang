@@ -71,7 +71,7 @@ function ModelPicker(props) {
     : { flex: '1 1 0', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }
 
   return h('div', null,
-    label ? h('label', { style: { display: 'block', fontSize: '12px', color: '#888', marginTop: 4 } }, label) : null,
+    label ? h('label', { style: { display: 'block', fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, #888)', marginTop: 4 } }, label) : null,
     h('div', { style: rowStyle },
       h('select', {
         'aria-label': t('pickProvider'),
