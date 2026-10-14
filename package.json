@@ -1,6 +1,6 @@
 {
   "name": "dsh-peak-valley-router",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Peak/off-peak multi-model routing policy engine for DeepSeek Harness, with a Settings GUI.",
   "license": "MIT",
   "type": "module",
@@ -17,8 +17,8 @@
   "scripts": {
     "build": "node src/build-client.mjs",
     "check": "node --check lib/index.js && node --check lib/client.js && node --check lib/text.js",
-    "test": "node scripts/roundtrip.test.mjs && node scripts/copy.test.mjs",
-    "verify": "node scripts/verify.mjs && node scripts/roundtrip.test.mjs && node scripts/copy.test.mjs"
+    "test": "node scripts/roundtrip.test.mjs && node scripts/copy.test.mjs && node scripts/session-state.test.mjs",
+    "verify": "node scripts/verify.mjs && node scripts/roundtrip.test.mjs && node scripts/copy.test.mjs && node scripts/session-state.test.mjs"
   },
   "dsh": {
     "bundle": {

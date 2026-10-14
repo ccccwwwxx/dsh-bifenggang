@@ -49,6 +49,11 @@ const PEAK_ROUTING_CSS = [
   '.dsh-peak-chip[data-on="true"]{color:var(--dsw-alias-state-business-primary,#4c8dff);border-color:currentColor}',
   '.dsh-peak-chip-label{max-width:84px;overflow:hidden;text-overflow:ellipsis}',
   '@media (max-width:420px){.dsh-peak-chip-label{display:none}}',
+  // 会话列表行首小灯（sidebar.session.row.leading）。「微微亮蓝光」：小圆点 + 柔和外发光，
+  // 并做极缓慢的呼吸；尊重 prefers-reduced-motion。
+  '.dsh-peak-light{display:block;flex:none;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-business-primary,#4c8dff);box-shadow:0 0 4px rgba(76,141,255,.75),0 0 1px rgba(76,141,255,.9);opacity:.85}',
+  '@keyframes dsh-peak-breathe{0%,100%{opacity:.5}50%{opacity:1}}',
+  '@media (prefers-reduced-motion:no-preference){.dsh-peak-light{animation:dsh-peak-breathe 2.6s ease-in-out infinite}}',
 // 接管选择器（审计后收窄）：只用「composer 卡片 + 模型触发器类片段」的组合，
 // 不再用 `button[aria-haspopup="menu"]` —— 那条虽然在本构建无损，但未来 composer 里
 // 新增任何菜单按钮都会被一并禁用。哈希类名是构建生成的，DSH 升级换哈希后本条自然
@@ -58,10 +63,12 @@ const PEAK_ROUTING_CSS = [
   '}',
 ].join('\n')
 
-// 注入与属性都是全局副作用：用引用计数让两个入口共存，最后一个卸载时才清理。
+// 注入与属性都是全局副作用：按 key 登记各入口的诉求，最后一个卸载时才清理。
+// 每个入口登记 { on, sessionKnown }。会话内入口（知道当前会话）优先——模型选择器的
+// 置灰要跟随「当前会话」而不是全局默认；只有全局入口挂载时才用全局默认。
 // 任何 DOM 异常都吞掉（降级），绝不影响侧边栏渲染。
 const peakRoutingVisual = (() => {
-  let refs = 0
+  let entries = []
   let styleEl = null
 
   const doc = () => (typeof document === 'undefined' ? null : document)
@@ -89,31 +96,33 @@ const peakRoutingVisual = (() => {
     else d.documentElement.removeAttribute(PEAK_ROUTING_ATTR)
   }
 
+  const recompute = () => {
+    const aware = entries.filter((entry) => entry.sessionKnown)
+    const source = aware.length > 0 ? aware[aware.length - 1] : entries[0]
+    apply(Boolean(source && source.on))
+  }
+
   return {
-    mount(enabled) {
+    register(key, on, sessionKnown) {
       try {
-        refs += 1
         ensureStyle()
-        apply(enabled)
+        entries = entries.filter((entry) => entry.key !== key)
+        entries.push({ key, on: on === true, sessionKnown: sessionKnown === true })
+        recompute()
       } catch (err) {
         console.error('[peak-valley-router] toggle style injection failed', err)
       }
     },
-    apply(enabled) {
+    unregister(key) {
       try {
-        ensureStyle()
-        apply(enabled)
-      } catch (err) {
-        console.error('[peak-valley-router] toggle style apply failed', err)
-      }
-    },
-    unmount() {
-      try {
-        refs = Math.max(0, refs - 1)
-        if (refs > 0) return // 另一个入口仍在挂载：保持属性与样式
-        apply(false)
-        if (styleEl !== null && styleEl.isConnected === true) styleEl.remove()
-        styleEl = null
+        entries = entries.filter((entry) => entry.key !== key)
+        if (entries.length === 0) {
+          apply(false)
+          if (styleEl !== null && styleEl.isConnected === true) styleEl.remove()
+          styleEl = null
+          return
+        }
+        recompute()
       } catch (err) {
         console.error('[peak-valley-router] toggle style cleanup failed', err)
       }
@@ -121,17 +130,16 @@ const peakRoutingVisual = (() => {
   }
 })()
 
-// 挂载时注入一次样式；enabled 变化时同步 html 属性；卸载时按引用计数清理。
-function usePeakRoutingVisual(enabled) {
+// 挂载时注入一次样式；enabled 变化时同步 html 属性；卸载时按 key 注销。
+function usePeakRoutingVisual(enabled, sessionKnown) {
+  const keyRef = useRef(null)
+  if (keyRef.current === null) keyRef.current = 'peak-visual-' + Math.random().toString(36).slice(2)
   useEffect(() => {
-    peakRoutingVisual.mount(enabled)
+    peakRoutingVisual.register(keyRef.current, enabled, sessionKnown)
     return () => {
-      peakRoutingVisual.unmount()
+      peakRoutingVisual.unregister(keyRef.current)
     }
-  }, [])
-  useEffect(() => {
-    peakRoutingVisual.apply(enabled)
-  }, [enabled])
+  }, [enabled, sessionKnown])
 }
 
 // 盾牌 + 对勾（非 emoji；纯装饰，语义由 aria-label / title 承担）。
@@ -155,30 +163,60 @@ function PeakRoutingIcon(props) {
 }
 
 // 开关行为（两个入口共用）：状态来自共享 store，点击写回 node 端。
+// 会话内入口（composer，session 作用域，注入 sessionId）改的是「这个会话」；
+// 侧边栏入口没有 sessionId，改的是「全局默认」。右键 = 恢复为跟随全局。
 function usePeakToggle(deps) {
   const store = deps ? deps.store : null
   const t = deps && typeof deps.t === 'function' ? deps.t : (key) => key
+  const sessionId = deps && typeof deps.sessionId === 'string' && deps.sessionId ? deps.sessionId : ''
   const { view, toggle } = usePeakRouting(store)
-  usePeakRoutingVisual(Boolean(view && view.enabled))
+  const enabled = Boolean(view && peakSessionEffective(view.enabled, view.sessions, sessionId))
+  usePeakRoutingVisual(enabled, sessionId !== '')
 
   if (!view) return null
 
-  const enabled = view.enabled === true
   const failed = view.failed === true
   const label = t('toggleLabel')
-  const stateText = enabled ? t('toggleOn') : t('toggleOff')
-  const hint = t('toggleHint')
+  const stateText = sessionId
+    ? (enabled ? t('sessionToggleOn') : t('sessionToggleOff'))
+    : (enabled ? t('toggleOn') : t('toggleOff'))
+  const hint = sessionId ? t('sessionToggleHint') : t('toggleHint')
   const errorText = failed && view.error ? String(view.error) : ''
   const title = errorText === '' ? hint : hint + ' — ' + errorText
   const ariaLabel = label + ' · ' + stateText
 
-  const onClick = () => {
-    const pending = toggle()
+  const run = (next, id, inherit) => {
+    const pending = toggle(next, id, inherit)
     // store.toggle 内部已 try/catch，这里只兜底未处理的 rejection。
     if (pending && typeof pending.catch === 'function') pending.catch(() => {})
   }
+  const onClick = () => run(undefined, sessionId || undefined)
+  const onContextMenu = sessionId
+    ? (e) => {
+      if (e && typeof e.preventDefault === 'function') e.preventDefault()
+      run(undefined, sessionId, true)
+    }
+    : undefined
 
-  return { enabled, failed, errorText, label, stateText, hint, title, ariaLabel, busy: view.busy === true, onClick }
+  return { enabled, failed, errorText, label, stateText, hint, title, ariaLabel, busy: view.busy === true, onClick, onContextMenu }
+}
+
+// 会话列表行首小灯（sidebar.session.row.leading，list / root，owner 传 { sessionId }）。
+// 亮 = 该会话的有效状态为开（显式覆盖，或没有覆盖时跟随全局默认）。
+// 复用同一个 store（不额外发 RPC）；每个会话行一个实例，成本只有一次订阅。
+function PeakSessionLight(props) {
+  const h = React.createElement
+  const store = props ? props.store : null
+  const sessionId = props && typeof props.sessionId === 'string' ? props.sessionId : ''
+  const on = usePeakSession(store, sessionId)
+  if (!sessionId || !on) return null
+  const title = t0(props, 'sessionLightTitle')
+  return h('span', {
+    className: 'dsh-peak-light',
+    role: 'img',
+    'aria-label': title,
+    title,
+  })
 }
 
 // 侧边栏入口：wide=true 展开态显示标签+开关+状态（开启时加一行提示），
@@ -198,6 +236,7 @@ function PeakSidebarToggle(props) {
     'data-on': state.enabled ? 'true' : 'false',
     disabled: state.busy,
     onClick: state.onClick,
+    ...(state.onContextMenu ? { onContextMenu: state.onContextMenu } : {}),
   }
 
   if (!wide) {
@@ -237,6 +276,7 @@ function PeakComposerToggle(props) {
     'data-on': state.enabled ? 'true' : 'false',
     disabled: state.busy,
     onClick: state.onClick,
+    ...(state.onContextMenu ? { onContextMenu: state.onContextMenu } : {}),
     className: 'dsh-peak-chip',
   }, [
     h(PeakRoutingIcon, { key: 'icon', size: 14 }),
@@ -278,10 +318,23 @@ function registerToggle(ctx, deps) {
   // 备用入口：composer 输入区左侧（list / session）。窄屏（<1024px，layout.client.js:13/:236）
   // 或 Windows 收起态（collapsedWidth=0，layout.client.js:241；footArea display:none，
   // sidebar.client.js:91）时侧边栏入口不可达，此入口仍在。
+  // 它是 session 作用域：inject 回调会收到当前会话 id（同官方 model-selection 的写法，
+  // .recon/model-selection.client.js:1248-1263），因此这里读写的是「这个会话」。
   ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
     name: 'conversation.input.left',
     id: 'peak-valley-router-toggle',
     order: 40,
-    inject,
+    inject: (sessionId) => ({ rpc: api, t, store, sessionId: typeof sessionId === 'string' ? sessionId : '' }),
   }, PeakComposerToggle))
+
+  // 会话列表行首小灯：sidebar.session.row.leading（list / root）。
+  // owner 每次渲染传入 { sessionId }（.recon/workspace.client.js:1755），
+  // 声明见 :4490-4493。注意该位置只在「非归档、非空白、无状态点、无未读」时渲染
+  // （:1755 的条件链）—— 因此小灯在会话运行中/有未读时不显示，这是宿主行为，不改动。
+  ctx.slots.inject('sidebar.session.row.leading', () => ctx.slots.register({
+    name: 'sidebar.session.row.leading',
+    id: 'peak-valley-router-light',
+    order: 60,
+    inject: () => ({ store, t }),
+  }, PeakSessionLight))
 }

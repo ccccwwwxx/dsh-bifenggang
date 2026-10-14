@@ -17,7 +17,7 @@ function rpc(connection) {
     set: (config) => call('dsh-peak-valley-router.set', { config }),
     providers: () => call('dsh-peak-valley-router.providers', {}),
     models: (provider) => call('dsh-peak-valley-router.models', { provider }),
-    toggle: (enabled) => call('dsh-peak-valley-router.toggle', { enabled }),
+    toggle: (payload) => call('dsh-peak-valley-router.toggle', typeof payload === 'boolean' ? { enabled: payload } : (payload || {})),
   }
 }
 
@@ -76,7 +76,9 @@ function peakRoutingErrorText(error) {
 // rpc.get() -> { config, enabled }；rpc.toggle(enabled) -> { enabled }（见 90-apply.js / lib/index.js）。
 function createPeakRoutingStore(api) {
   const listeners = new Set()
-  let state = { enabled: false, ready: false, busy: false, failed: false, error: '' }
+  // sessions: 每会话显式覆盖（sessionId -> boolean）；缺席即跟随 enabled（全局默认）。
+  // version: 由 node 端读 package.json 下发，用于确认运行时到底是哪一版。
+  let state = { enabled: false, sessions: {}, version: '', ready: false, busy: false, failed: false, error: '' }
   let loading = null
 
   const snapshot = () => ({ ...state })
@@ -97,7 +99,15 @@ function createPeakRoutingStore(api) {
     try {
       const value = await api.get()
       const enabled = Boolean(value && value.enabled)
-      publish({ enabled, ready: true, busy: false, failed: false, error: '' })
+      publish({
+        enabled,
+        sessions: peakRoutingSessions(value),
+        version: typeof value?.version === 'string' ? value.version : '',
+        ready: true,
+        busy: false,
+        failed: false,
+        error: '',
+      })
       return enabled
     } catch (err) {
       // 读取失败：保留本地状态，只标记非致命失败（开关仍然可点）。
@@ -105,6 +115,17 @@ function createPeakRoutingStore(api) {
       return undefined
     }
   }
+
+  // 会话的有效状态：有显式覆盖用覆盖值，否则跟随全局默认。
+  const sessionState = (sessionId) => peakSessionEffective(state.enabled, state.sessions, sessionId)
+  const hasOverride = (sessionId) => typeof sessionId === 'string' && sessionId !== ''
+    && Object.prototype.hasOwnProperty.call(state.sessions, sessionId)
+
+  // 用服务端回包替换本地状态；回包缺字段时退回当前值，避免把 UI 抖成空。
+  const reconcile = (value, fallbackSessions, fallbackEnabled) => ({
+    enabled: value && typeof value.enabled === 'boolean' ? value.enabled : fallbackEnabled,
+    sessions: value && value.sessions !== undefined ? peakRoutingSessions(value) : fallbackSessions,
+  })
 
   return {
     subscribe(listener) {
@@ -114,31 +135,72 @@ function createPeakRoutingStore(api) {
       }
     },
     get: snapshot,
+    sessionState,
+    hasOverride,
     // 两个入口共用同一次首次读取（重复挂载不会重复发 rpc.get）。
     ensureLoaded() {
       if (loading === null) loading = read()
       return loading
     },
-    async toggle(next) {
-      const before = state.enabled
-      const desired = typeof next === 'boolean' ? next : !before
-      if (state.busy) return before
-      publish({ enabled: desired, busy: true, failed: false, error: '' }) // 乐观更新
+    /**
+     * 写开关。带 sessionId 时只改该会话（inherit=true 则清除覆盖、回到跟随全局），
+     * 不带时改全局默认。乐观更新 + 服务端回包校正 + 失败回滚。
+     */
+    async toggle(next, sessionId, inherit) {
+      const before = { enabled: state.enabled, sessions: state.sessions }
+      const id = typeof sessionId === 'string' && sessionId ? sessionId : ''
+      if (state.busy) return id ? sessionState(id) : before.enabled
+
+      const desired = typeof next === 'boolean' ? next : (id ? !sessionState(id) : !before.enabled)
+      const optimistic = { ...before.sessions }
+      if (id && inherit === true) delete optimistic[id]
+      else if (id) optimistic[id] = desired
+      publish({
+        enabled: id ? before.enabled : desired,
+        sessions: optimistic,
+        busy: true,
+        failed: false,
+        error: '',
+      })
       try {
-        const value = await api.toggle(desired)
-        const confirmed = value && typeof value.enabled === 'boolean' ? value.enabled : desired
-        publish({ enabled: confirmed, busy: false, failed: false, error: '' }) // 以服务端返回值为准
-        return confirmed
+        const value = await api.toggle(id
+          ? (inherit === true ? { sessionId: id, inherit: true } : { enabled: desired, sessionId: id })
+          : { enabled: desired })
+        const next2 = reconcile(value, optimistic, id ? before.enabled : desired)
+        publish({ ...next2, busy: false, failed: false, error: '' })
+        return id ? (value && typeof value.sessionEnabled === 'boolean' ? value.sessionEnabled : sessionState(id)) : next2.enabled
       } catch (err) {
         // 失败：回滚到点击前的状态，并给出可展示的非致命错误文本。
-        publish({ enabled: before, busy: false, failed: true, error: peakRoutingErrorText(err) })
-        return before
+        publish({ ...before, busy: false, failed: true, error: peakRoutingErrorText(err) })
+        return id ? sessionState(id) : before.enabled
       }
     },
   }
 }
 
+// 只保留布尔值，避免脏数据（运行时下发的东西也要当外部输入处理）。
+function peakRoutingSessions(value) {
+  const raw = value && value.sessions
+  const out = {}
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    for (const [id, flag] of Object.entries(raw)) {
+      if (id && typeof flag === 'boolean') out[id] = flag
+    }
+  }
+  return out
+}
+
+// 会话有效状态（纯函数，便于单测）：显式覆盖优先，否则跟随全局默认。
+// 没有会话 id（列表外的入口）时就是全局默认。
+function peakSessionEffective(enabled, sessions, sessionId) {
+  const id = typeof sessionId === 'string' ? sessionId : ''
+  if (!id) return enabled === true
+  const map = sessions && typeof sessions === 'object' ? sessions : {}
+  return Object.prototype.hasOwnProperty.call(map, id) ? map[id] === true : enabled === true
+}
+
 // 订阅共享 store；首次挂载触发一次共享 rpc.get()。
+// toggle(next, sessionId?, inherit?) —— 带 sessionId 时只改该会话。
 function usePeakRouting(store) {
   const [view, setView] = useState(() => (store ? store.get() : null))
   useEffect(() => {
@@ -148,6 +210,20 @@ function usePeakRouting(store) {
     store.ensureLoaded()
     return off
   }, [store])
-  const toggle = useCallback((next) => (store ? store.toggle(next) : Promise.resolve(false)), [store])
+  const toggle = useCallback((next, sessionId, inherit) => (store ? store.toggle(next, sessionId, inherit) : Promise.resolve(false)), [store])
   return { view, toggle }
+}
+
+// 单个会话的有效状态，供会话列表小灯使用。订阅同一份 store，不额外发 RPC。
+function usePeakSession(store, sessionId) {
+  const [on, setOn] = useState(() => (store ? store.sessionState(sessionId) : false))
+  useEffect(() => {
+    if (!store) return undefined
+    const sync = (view) => setOn(Boolean(view && peakSessionEffective(view.enabled, view.sessions, sessionId)))
+    sync(store.get())
+    const off = store.subscribe(sync)
+    store.ensureLoaded()
+    return off
+  }, [store, sessionId])
+  return on
 }

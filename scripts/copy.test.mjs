@@ -93,6 +93,34 @@ check('reasoning-effort option values are still the DSH enum', () => {
   eq(JSON.stringify(values), JSON.stringify(['', 'low', 'medium', 'high', 'xhigh', 'max']), 'effort values')
 })
 
+// Per-session state resolution is the whole point of the session switch, and it
+// lives entirely in this pure helper — a regression here would show up as "the
+// light is wrong" rather than as an error, so it gets a direct guard.
+check('peakSessionEffective resolves overrides, defaults and missing ids', () => {
+  const sharedSrc = readFileSync(join(clientDir, '00-shared.js'), 'utf8')
+  const peakSessionEffective = new Function(`${liftFunction(sharedSrc, 'peakSessionEffective')}\nreturn peakSessionEffective`)()
+  const sessions = { a: true, b: false }
+  eq(peakSessionEffective(false, sessions, 'a'), true, 'override ON beats default OFF')
+  eq(peakSessionEffective(true, sessions, 'b'), false, 'override OFF beats default ON')
+  eq(peakSessionEffective(true, sessions, 'c'), true, 'no entry follows default ON')
+  eq(peakSessionEffective(false, sessions, 'c'), false, 'no entry follows default OFF')
+  eq(peakSessionEffective(true, sessions, ''), true, 'empty id -> default')
+  eq(peakSessionEffective(true, undefined, 'a'), true, 'missing map -> default')
+  eq(peakSessionEffective(false, {}, undefined), false, 'missing id -> default')
+})
+
+check('peakRoutingSessions keeps only boolean values from the wire', () => {
+  const sharedSrc = readFileSync(join(clientDir, '00-shared.js'), 'utf8')
+  const peakRoutingSessions = new Function(`${liftFunction(sharedSrc, 'peakRoutingSessions')}\nreturn peakRoutingSessions`)()
+  // eq() is a strict comparison for scalars; objects need structural equality.
+  const eqj = (actual, expected, label) => eq(JSON.stringify(actual), JSON.stringify(expected), label)
+  eqj(peakRoutingSessions({ sessions: { a: true, b: false } }), { a: true, b: false }, 'clean map')
+  eqj(peakRoutingSessions({ sessions: { a: 'yes', b: 1, '': true } }), {}, 'drops non-booleans and empty ids')
+  eqj(peakRoutingSessions({ sessions: ['a'] }), {}, 'drops arrays')
+  eqj(peakRoutingSessions({ sessions: null }), {}, 'tolerates null')
+  eqj(peakRoutingSessions(undefined), {}, 'tolerates undefined')
+})
+
 // The user requirement is that ALL interface text is maintained in one file. This
 // catches the failure mode the reviewer found (a Chinese weekday array hardcoded
 // in the client): once block comments are removed and each line is cut at its
