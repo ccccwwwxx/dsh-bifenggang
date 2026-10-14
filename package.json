@@ -17,8 +17,9 @@
   "scripts": {
     "build": "node src/build-client.mjs",
     "check": "node --check lib/index.js && node --check lib/client.js && node --check lib/text.js",
-    "test": "node scripts/roundtrip.test.mjs && node scripts/copy.test.mjs && node scripts/session-state.test.mjs",
-    "verify": "node scripts/verify.mjs && node scripts/roundtrip.test.mjs && node scripts/copy.test.mjs && node scripts/session-state.test.mjs"
+    "test": "node scripts/roundtrip.test.mjs && node scripts/copy.test.mjs && node scripts/session-state.test.mjs && node scripts/session-fuzz.mjs",
+    "fuzz": "node scripts/session-fuzz.mjs",
+    "verify": "node scripts/verify.mjs && node scripts/roundtrip.test.mjs && node scripts/copy.test.mjs && node scripts/session-state.test.mjs && node scripts/session-fuzz.mjs"
   },
   "dsh": {
     "bundle": {

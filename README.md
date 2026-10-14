@@ -27,6 +27,7 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
 - `scripts/roundtrip.test.mjs` — 副模型往返回归（防止形状错配复发）
 - `scripts/copy.test.mjs` — 界面文案单一来源与本地化映射检查
 - `scripts/session-state.test.mjs` — 每会话状态语义（覆盖 / 跟随默认 / 清除 / 容量上限 / 会话 id 读取）
+- `scripts/session-fuzz.mjs` — 随机化差分属性测试：200 次随机操作 × 12 个探针 id（含 `__proto__`、`constructor`、超长与 Unicode id），**期望值独立地从 `state.json` 重算**，用来抓跨会话串扰与身份透传违规（`npm run fuzz`，可传种子）
 - `CHANGELOG.md` — 变更记录与版本策略
 - `cordis.patch.yml` — 自激活 patch（bundle 安装用）
 - `package.json` — 插件清单（含 `dsh.client` 声明）
