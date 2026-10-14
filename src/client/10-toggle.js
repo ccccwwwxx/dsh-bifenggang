@@ -131,15 +131,18 @@ const peakRoutingVisual = (() => {
 })()
 
 // 挂载时注入一次样式；enabled 变化时同步 html 属性；卸载时按 key 注销。
+// 两个 effect 分开是关键：如果 value 变化的 effect 也返回注销函数，每次切换都会
+// 先卸载（清掉样式与属性）再重新注册，模型选择器会闪一下。
 function usePeakRoutingVisual(enabled, sessionKnown) {
   const keyRef = useRef(null)
   if (keyRef.current === null) keyRef.current = 'peak-visual-' + Math.random().toString(36).slice(2)
+  const key = keyRef.current
+  useEffect(() => () => {
+    peakRoutingVisual.unregister(key)
+  }, [key])
   useEffect(() => {
-    peakRoutingVisual.register(keyRef.current, enabled, sessionKnown)
-    return () => {
-      peakRoutingVisual.unregister(keyRef.current)
-    }
-  }, [enabled, sessionKnown])
+    peakRoutingVisual.register(key, enabled, sessionKnown)
+  }, [key, enabled, sessionKnown])
 }
 
 // 盾牌 + 对勾（非 emoji；纯装饰，语义由 aria-label / title 承担）。
@@ -173,7 +176,9 @@ function usePeakToggle(deps) {
   const enabled = Boolean(view && peakSessionEffective(view.enabled, view.sessions, sessionId))
   usePeakRoutingVisual(enabled, sessionId !== '')
 
-  if (!view) return null
+  // 首次 rpc.get 返回前不渲染：否则开关会先显示「未启用」再翻转成真实状态。
+  // 失败路径同样会把 ready 置 true，所以读失败时开关照常出现（带 '!' 标记）。
+  if (!view || view.ready !== true) return null
 
   const failed = view.failed === true
   const label = t('toggleLabel')

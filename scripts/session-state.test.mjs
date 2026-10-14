@@ -164,6 +164,29 @@ check('an id like "__proto__" is stored as a normal own override', async () => {
   eq(st.sessions['__proto__'], true, 'persisted value')
 })
 
+check('a malformed sessionId is rejected instead of silently becoming a global toggle', async () => {
+  // One bad argument must not turn routing off for EVERY session, and the caller
+  // must be able to tell which branch ran.
+  const host = makeHostWithListener({ enabled: true })
+  for (const bad of [12345, true, {}, ['x'], '']) {
+    const res = await host.call('toggle', { sessionId: bad, enabled: false })
+    if (res?.ok !== false || res?.error?.code !== 'bad-request') {
+      throw new Error(`sessionId=${JSON.stringify(bad)} must be bad-request, got ${JSON.stringify(res)}`)
+    }
+  }
+  const st = host.readState()
+  eq(st.enabled, true, 'a rejected toggle must not change the global default')
+  eq(st.sessions, {}, 'a rejected toggle must not write an override')
+})
+
+check('toggle without `enabled` flips the global default too (same shape as the session branch)', async () => {
+  const host = makeHostWithListener({ enabled: false })
+  const first = await host.call('toggle', {})
+  eq(first.value.enabled, true, 'flip off -> on')
+  const second = await host.call('toggle', {})
+  eq(second.value.enabled, false, 'flip on -> off')
+})
+
 check('the override map is bounded and evicts the least recently written session', async () => {
   const cap = 500
   const host = makeHostWithListener({ enabled: false })
@@ -173,6 +196,25 @@ check('the override map is bounded and evicts the least recently written session
   eq(ids.length, cap, 'map stays at the cap')
   if ('s0' in st.sessions) throw new Error('the oldest session should have been evicted')
   if (!(`s${cap + 4}` in st.sessions)) throw new Error('the newest session must be present')
+})
+
+check('an integer-like id is not evicted early (object key order would do exactly that)', async () => {
+  // JS objects enumerate integer-like keys first, in ascending order, so a
+  // delete-then-set does NOT move "0" to the end. With a plain object the
+  // just-written override was evicted as if it were the oldest entry — the same
+  // silent-drop class as the "__proto__" bug. The cap test above uses `s${i}` ids
+  // and therefore cannot catch it.
+  const host = makeHostWithListener({ enabled: false })
+  for (let i = 0; i < 498; i++) await host.call('toggle', { enabled: true, sessionId: `s${i}` })
+  await host.call('toggle', { enabled: true, sessionId: '0' }) // most recently written
+  if (!Object.keys(host.readState().sessions).includes('0')) throw new Error('"0" must be present right after being set')
+  for (let i = 0; i < 3; i++) await host.call('toggle', { enabled: true, sessionId: `t${i}` })
+  const st = host.readState()
+  const ids = Object.keys(st.sessions)
+  eq(ids.length, 500, 'map stays at the cap')
+  if (!('0' in st.sessions)) throw new Error('the most recently written id "0" must survive the overflow')
+  if ('s0' in st.sessions || 's1' in st.sessions) throw new Error('the least recently written ids must be evicted instead')
+  if (await host.route('0', SEED) === SEED) throw new Error('"0" must still gate routing')
 })
 
 check('get exposes the whole override map so the session list can render it', async () => {

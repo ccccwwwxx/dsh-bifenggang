@@ -4,7 +4,7 @@
 
 DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKILL.md](./SKILL.md)。
 
-当前版本：**v0.9.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+当前版本：**v0.10.2**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## 它做什么
 
@@ -12,7 +12,8 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
 - **Provider / 模型一律下拉选择**：候选来自运行时**已注册的全部 provider**——API 与你装的订阅套餐并列（如 DeepSeek、ChatGPT Plus / Codex、Claude、Grok、Copilot、Antigravity），模型经该 provider 的 `listModels` 接口读取。避峰岗自身**不会**出现在候选里：它是 provider 之上的一层选择器逻辑，不是 provider。
 - **左侧「启用避峰岗」开关**：默认关闭 = 纯透传，行为与未装插件一致。开启后由避峰岗决定实际调用的模型，**连会话里已经选过的模型也会被改写**（会话自带的模型选择器本身不改动，只做功能接管 + 尽力而为的置灰提示）。
 - **每会话独立状态 + 会话列表小灯**：侧边栏底部的开关是**全局默认**；composer 输入区左侧的开关操作**当前会话**（右键清除覆盖、恢复跟随全局）。会话列表行首会出现一个**微微发蓝光的小灯**，标出哪些会话开着。没有单独设置的会话跟随全局默认——所以旧的行为习惯不变。
-  - 已知限制：行首位置由宿主条件渲染，会话**正在运行（有状态点）或有未读标记**时宿主不渲染该位置，小灯在这些时刻不显示。
+  - **已知限制**：行首位置由宿主条件渲染，下列四种行**不渲染**该插槽，小灯在这些时刻不显示——归档（archived）、空白（blank）、**正在运行**（显示状态点）、**有未读标记**。依据：`.recon/workspace.client.js` 里 `!row.archived && !row.blank && (showStatus ? … : unread ? … : renderSlot("sidebar.session.row.leading", …))`。这是宿主行为，插件不去改它。
+  - 另需注意：小灯反映的是**开关意图**，不是"此刻一定生效"。若策略目标不在 provider 目录里（模型下线/改名），路由会**静默回落到会话原模型**，只在 `debug.log` 留一行——此时小灯仍是亮的。
 - **多端可用**：开关同时挂在左侧边栏底部与 composer 输入区左侧。窄屏（<1024px 侧边栏自动收起、Windows/macOS 收起态整列宽度为 0）时由 composer 入口兜底，两个入口共享同一份状态。
 
 ## 目录
@@ -36,13 +37,15 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
 
 ```bash
 node src/build-client.mjs   # 重建 lib/client.js（改了 src/client 或 lib/text.js 后必跑）
-npm run verify              # 三套检查：契约自检 + 副模型往返 + 文案/本地化
+npm run verify              # 五套检查（只读，不写任何产物）
+npm run fuzz                # 只跑随机化差分属性测试（可传随机种子）
 ```
 
 `npm run verify` 覆盖：文案 key 完整性/双语对称、client↔node RPC 契约、关键不变式
 （`inject=['llm']`、`agent/request` 带 `prepend`、无 `registerAdapter`/`llm/stream` 残留、
-未触碰会话模型选择器）、版本一致性（`package.json` ↔ `CHANGELOG.md`）、产物新鲜度、
-副模型形状往返、界面文案无硬编码中文。
+未触碰会话模型选择器）、版本一致性（`package.json` ↔ `CHANGELOG.md` ↔ `README.md`/`SKILL.md`
+的「当前版本」）、产物新鲜度（**构建到临时文件比对，不重写仓库里的产物**）、仓库顶层文件集合、
+副模型形状往返、界面文案无硬编码中文、每会话状态语义、随机化差分属性测试。
 
 ## 安装
 
@@ -72,3 +75,10 @@ npm run verify              # 三套检查：契约自检 + 副模型往返 + �
 - `policy.json` — GUI 保存的策略
 - `state.json` — 开关状态：`{ enabled, sessions }`。`enabled` 是**全局默认**，`sessions` 是**每会话覆盖**表（没有覆盖的会话跟随默认；上限 500 条，按最近写入淘汰）。旧文件（只有 `enabled`）行为完全不变。
 - `debug.log` — 诊断日志（只在 apply / 目录读取失败 / 开关切换 / 每个新接管目标时各记一行）
+
+## 已知限制
+
+- **跨窗口/多进程不同步**：开关状态在插件加载时读一次，客户端也不轮询。同一台机器上开两个窗口，A 的改动要等 B 重新加载才可见；两个 DSH 进程共用同一个 `DSH_HOME` 时，各自持有自己的快照，后写的一方会覆盖**整张** `sessions` 表（写入是原子的，但没有合并语义）。单窗口单进程使用不受影响。
+- **目标模型不在目录里时静默回落**：策略目标（主模型/副模型/升维兜底）若不在该 provider 当前的模型目录中（下线、改名、订阅登出），路由会保留会话原模型，只在 `debug.log` 记一行。此时开关与小灯仍显示"开"——它们反映的是**开关意图**，不是"此刻一定生效"。
+- **行首小灯的显示条件**：见上文「每会话独立状态」一节的四条隐藏条件（宿主行为）。
+- **并发点击**：写盘期间开关按钮是禁用的，被丢弃的那次点击不会报错（没有队列）。

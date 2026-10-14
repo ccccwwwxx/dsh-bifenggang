@@ -1,8 +1,9 @@
 // 仓库自检：文案 key 完整性、RPC 契约一致性、生成物新鲜度。
 // 用法：node scripts/verify.mjs   （在 dsh-bifenggang 目录下运行；退出码非 0 表示失败）
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -71,10 +72,19 @@ if (/conversation\.input\.model/.test(clientSrc)) bad('有代码注册进 conver
 else ok('未触碰 conversation.input.model 插槽')
 
 // ---------- 4. 生成物新鲜度 ----------
-const before = readFileSync(join(root, 'lib', 'client.js'))
-execFileSync(process.execPath, [join(root, 'src', 'build-client.mjs')], { cwd: root, stdio: 'pipe' })
-const after = readFileSync(join(root, 'lib', 'client.js'))
-if (before.equals(after)) ok('lib/client.js 与 src/client 源一致（产物新鲜）')
+// Build to a SCRATCH file and compare normalized text. Two reasons this is not
+// just "rebuild in place and diff":
+//   1. `npm run verify` must be read-only — it used to rewrite the shipped
+//      lib/client.js as a side effect of checking it.
+//   2. CRLF checkouts (core.autocrlf=true) otherwise report "stale" purely
+//      because the checkout has CRLF and the build writes LF.
+const normalize = (buf) => buf.toString('utf8').replace(/\r\n/g, '\n')
+const shippedClient = normalize(readFileSync(join(root, 'lib', 'client.js')))
+const scratch = join(tmpdir(), `pv-client-check-${process.pid}.js`)
+execFileSync(process.execPath, [join(root, 'src', 'build-client.mjs'), scratch], { cwd: root, stdio: 'pipe' })
+const builtClient = normalize(readFileSync(scratch))
+rmSync(scratch, { force: true })
+if (shippedClient === builtClient) ok('lib/client.js 与 src/client 源一致（产物新鲜；比对不写盘）')
 else bad('lib/client.js 与 src/client 源不一致：需要重新构建并提交')
 
 // ---------- 5. 默认定义 ----------
@@ -118,6 +128,23 @@ const stray = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
   .filter((file) => !file.includes('/') && !EXPECTED_ROOT.has(file))
 if (stray.length) bad(`仓库顶层出现非预期文件（疑似误提交）: ${stray.join(', ')}`)
 else ok('仓库顶层文件符合预期')
+
+// 文档里的「当前版本」必须与 package.json 一致。审计发现 README 曾停在 v0.9.0
+// 而 package.json/CHANGELOG/tag 都已是 0.10.x —— 旧守卫只交叉核对 CHANGELOG，
+// 所以它一直是绿的。这里只认「当前版本」那一行，避免把历史版本号当错误。
+for (const file of ['README.md', 'SKILL.md']) {
+  const line = readFileSync(join(root, file), 'utf8')
+    .split('\n')
+    .find((candidate) => candidate.includes('当前版本'))
+  if (!line) {
+    bad(`${file} 找不到「当前版本」标注`)
+    continue
+  }
+  const m = line.match(/v(\d+\.\d+\.\d+)/)
+  if (!m) bad(`${file} 的「当前版本」行里没有 vX.Y.Z`)
+  else if (m[1] !== pkg.version) bad(`${file} 写着 v${m[1]}，package.json 是 ${pkg.version}`)
+  else ok(`${file} 当前版本与 package.json 一致 (v${pkg.version})`)
+}
 
 // ---------- 结果 ----------
 console.log(notes.join('\n'))

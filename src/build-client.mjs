@@ -4,7 +4,7 @@
 // 用法：node src/build-client.mjs
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
@@ -45,5 +45,9 @@ const out = [
   tail,
 ].join('\n')
 
-writeFileSync(join(root, 'lib', 'client.js'), out, 'utf8')
-console.log(`built lib/client.js: ${out.length} bytes from ${ORDER.length} parts`)
+// Optional output path: the freshness check in scripts/verify.mjs builds to a
+// scratch file and compares, so that `npm run verify` never rewrites a shipped
+// artifact (and cannot be tripped by line-ending differences on checkout).
+const outPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'lib', 'client.js')
+writeFileSync(outPath, out, 'utf8')
+console.log(`built ${outPath}: ${out.length} bytes from ${ORDER.length} parts`)
