@@ -107,7 +107,7 @@ check('no hardcoded CJK copy is left in the client sources', () => {
 
 check('every placeholder used by the client exists in both languages', () => {
   // Placeholders the client actually passes; a typo would silently render "{time}".
-  const expected = { saved: ['time'], saveFailed: ['detail'], errStrategy: ['index', 'issue'], errMore: ['count'] }
+  const expected = { saved: ['time'], saveFailed: ['detail'], errStrategy: ['index', 'issue'], errMore: ['count'], strategyLabel: ['index'] }
   for (const [key, names] of Object.entries(expected)) {
     for (const lang of [zh, en]) {
       for (const name of names) {

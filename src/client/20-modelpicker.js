@@ -1,7 +1,11 @@
-// Provider + 模型选择器。
+// Provider + 模型 + 思考档 三档选择器。
 // 约定：provider 下拉把全部已注册 provider（API 与订阅套餐）并列展示；
 // 模型一律「下拉选择」，选项由 40-settings.js 通过 models RPC 拉取后传入（models[providerId]）。
 // 降级：providers / 模型拉取失败时下拉仍然可用（可能为空），不阻塞保存。
+//
+// 布局：宽容器三列（Provider / 模型 各占一份，思考档固定窄列，避免被等分拉长）；
+// 窄容器竖直堆叠。narrow 由 40-settings.js 按「控件自身容器宽度」实测后传入，
+// 不用窗口宽度（设置面板常比窗口窄）。
 //
 // props:
 //   label          — 选择器标题（如「主模型」）
@@ -12,7 +16,7 @@
 //   modelsError    — 当前 provider 的模型拉取失败信息（无失败时为空串）
 //   onChange       — (nextValue) => void
 //   onNeedModels   — (providerId) => void，切换 provider 时懒加载该 provider 的模型
-//   t / narrow     — 文案函数 / 是否窄屏
+//   t / narrow     — 文案函数 / 是否窄容器
 
 function ModelPicker(props) {
   const h = React.createElement
@@ -62,16 +66,37 @@ function ModelPicker(props) {
   }
   for (const opt of modelOptions) modelChildren.push(opt)
 
-  // 窄屏：三个控件全宽堆叠；宽屏：同一行等宽伸缩，禁止横向溢出。
-  const rowStyle = narrow
-    ? { margin: '4px 0' }
-    : { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', margin: '4px 0' }
-  const ctrlStyle = narrow
-    ? { display: 'block', width: '100%', maxWidth: '100%', boxSizing: 'border-box', marginBottom: 6 }
-    : { flex: '1 1 0', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }
+  // 思考档：value 保持 DSH 的枚举值，标签走文案表（此前直接显示 low/max 这类原始值）。
+  const effortChoices = [
+    ['', t('effortDefault')],
+    ['low', t('effortLow')],
+    ['medium', t('effortMedium')],
+    ['high', t('effortHigh')],
+    ['xhigh', t('effortXhigh')],
+    ['max', t('effortMax')],
+  ]
 
-  return h('div', null,
-    label ? h('label', { style: { display: 'block', fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, #888)', marginTop: 4 } }, label) : null,
+  const ctrlStyle = {
+    display: 'block',
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
+    boxSizing: 'border-box',
+    textOverflow: 'ellipsis',
+  }
+  // 思考档只需要窄栏；等分会让它被拉得很长、值靠左显得空旷。
+  const rowStyle = narrow
+    ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6 }
+    : { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(96px, 116px)', gap: 8 }
+
+  const status = failed ? t('modelsLoadFailed') : (busy ? t('modelsLoading') : '')
+
+  return h('div', { style: { minWidth: 0 } },
+    label
+      ? h('div', {
+        style: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary, #666)', marginBottom: 4 },
+      }, label)
+      : null,
     h('div', { style: rowStyle },
       h('select', {
         'aria-label': t('pickProvider'),
@@ -91,7 +116,7 @@ function ModelPicker(props) {
       ),
       h('select', {
         'aria-label': label ? label + ' · ' + t('pickModel') : t('pickModel'),
-        title: failed || v.model || '',
+        title: v.model || '',
         value: v.model || '',
         style: ctrlStyle,
         onChange: (e) => onChange({ ...v, model: e.target.value }),
@@ -101,8 +126,13 @@ function ModelPicker(props) {
         value: v.reasoningEffort || '',
         style: ctrlStyle,
         onChange: (e) => onChange({ ...v, reasoningEffort: e.target.value }),
-      }, ['', 'low', 'medium', 'high', 'xhigh', 'max'].map((e) =>
-        h('option', { key: e || 'default', value: e }, e || t('effortDefault')))),
+      }, effortChoices.map(([val, text]) => h('option', { key: val || '__default', value: val }, text))),
     ),
+    // 目录状态单独一行小字：放在 select 的 title 里在触屏上根本看不到。
+    status
+      ? h('div', {
+        style: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary, #999)', marginTop: 3 },
+      }, status)
+      : null,
   )
 }

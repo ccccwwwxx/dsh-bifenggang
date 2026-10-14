@@ -30,17 +30,32 @@ function weekdayLabels(t) {
   return String(raw).split(',')
 }
 
-// 轻量响应式：视口宽度 <= 720px 视为窄屏（移动端 / 远程连接）。
-function useIsNarrow() {
-  const read = () => (typeof window === 'undefined' ? false : window.innerWidth <= 720)
-  const [narrow, setNarrow] = useState(read)
+// 控件「自身容器」的宽度（不是窗口宽度）。设置面板常常比窗口窄（分屏、窄窗口、
+// 宿主内边距），按窗口判断会把三个下拉硬挤在一行。用 ResizeObserver 实测自身宽度。
+// 返回 [ref, narrow]；ref 是回调 ref，挂到被测量的根元素上。
+// 用回调 ref + state 保存节点（而不是 useRef）：节点被重新挂载时 effect 会重跑，
+// 不会出现「一直在观测旧节点」这种静默失效。
+function useContainerWidth(threshold) {
+  const [node, setNode] = useState(null)
+  const [narrow, setNarrow] = useState(false)
+  const ref = useCallback((next) => setNode(next || null), [])
   useEffect(() => {
-    if (typeof window === 'undefined') return undefined
-    const onResize = () => setNarrow(read())
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-  return narrow
+    if (!node) return undefined
+    const read = () => {
+      const width = node.clientWidth
+      // clientWidth 为 0（尚未布局或被隐藏）时保持上一次判断，避免宽度闪一下。
+      if (width > 0) setNarrow(width < threshold)
+    }
+    read()
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', read)
+      return () => window.removeEventListener('resize', read)
+    }
+    const observer = new ResizeObserver(read)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [node, threshold])
+  return [ref, narrow]
 }
 
 // ---- 「启用避峰岗」开关的共享状态源 ----

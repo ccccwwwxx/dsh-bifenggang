@@ -74,7 +74,9 @@ function pvNormalizeProviders(res) {
 
 function PolicySettingsSection({ rpc, t }) {
   const h = React.createElement
-  const narrow = useIsNarrow()
+  // 按「本区块自身容器宽度」判断宽窄：设置面板常比窗口窄（分屏、窄窗口），
+  // 用窗口宽度会把三个下拉硬挤在一行。
+  const [sectionRef, narrow] = useContainerWidth(640)
   const [config, setConfig] = useState(null)
   const [loadError, setLoadError] = useState('')
   const [providers, setProviders] = useState([])
@@ -175,15 +177,15 @@ function PolicySettingsSection({ rpc, t }) {
   }, [loadProviders, fetchModels, config])
 
   if (!config) {
-    return h('div', { style: { padding: narrow ? 8 : 12, maxWidth: '100%', boxSizing: 'border-box' } },
-      h('div', { style: { fontSize: '15px', fontWeight: 600, marginBottom: 8 } }, t('title')),
+    return h('div', { ref: sectionRef, style: { maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' } },
+      h('div', { style: { fontSize: 15, lineHeight: '22px', fontWeight: 600, color: 'var(--dsw-alias-label-primary, #111)', marginBottom: 8 } }, t('title')),
       loadError
         ? h('div', null,
-          h('div', { style: { color: 'var(--dsw-alias-state-error-primary, #c00)', fontSize: '13px', marginBottom: 4 } }, t('loadFailed')),
-          h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, #888)', marginBottom: 8, wordBreak: 'break-word' } }, loadError),
+          h('div', { style: { color: 'var(--dsw-alias-state-error-primary, #c00)', fontSize: 13, marginBottom: 4 } }, t('loadFailed')),
+          h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-tertiary, #888)', marginBottom: 8, wordBreak: 'break-word' } }, loadError),
           h('button', { onClick: () => { load() }, style: { fontWeight: 600 } }, t('retry')),
         )
-        : h('div', { style: { fontSize: '13px', color: 'var(--dsw-alias-label-tertiary, #888)' } }, t('loading')),
+        : h('div', { style: { fontSize: 13, color: 'var(--dsw-alias-label-tertiary, #888)' } }, t('loading')),
     )
   }
 
@@ -236,18 +238,19 @@ function PolicySettingsSection({ rpc, t }) {
   const catalogDegraded = Boolean(providersError) || modelErrorIds.length > 0
   const catalogDetail = providersError || (modelErrorIds.length > 0 ? modelsError[modelErrorIds[0]] : '')
 
-  return h('div', { style: { padding: narrow ? 8 : 12, maxWidth: '100%', boxSizing: 'border-box' } },
-    h('div', { style: { fontSize: '15px', fontWeight: 600, marginBottom: 8 } }, t('title')),
-    h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, #888)', marginBottom: 12 } }, t('subtitle')),
+  return h('div', { ref: sectionRef, style: { maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' } },
+    h('div', { style: { fontSize: 15, lineHeight: '22px', fontWeight: 600, color: 'var(--dsw-alias-label-primary, #111)', marginBottom: 4 } }, t('title')),
+    h('div', { style: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary, #888)', marginBottom: 12 } }, t('subtitle')),
     catalogDegraded ? h('div', {
-      style: { border: '1px solid var(--dsw-alias-state-warn-primary, #e6c473)', background: 'var(--dsw-alias-bg-layer-1, #fff9e8)', borderRadius: 8, padding: 8, marginBottom: 10, maxWidth: '100%', boxSizing: 'border-box' },
+      style: { border: '1px solid var(--dsw-alias-state-warn-primary, #e6c473)', background: 'var(--dsw-alias-bg-layer-1, #fff9e8)', borderRadius: 10, padding: 10, marginBottom: 12, maxWidth: '100%', boxSizing: 'border-box' },
     },
-      h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-state-warn-label, #8a6100)' } }, t('catalogUnavailable')),
-      catalogDetail ? h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, #a08447)', marginTop: 2, wordBreak: 'break-word' } }, catalogDetail) : null,
-      h('button', { onClick: () => { reloadCatalog() }, style: { marginTop: 6 } }, t('retry')),
+      h('div', { style: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-state-warn-label, #8a6100)' } }, t('catalogUnavailable')),
+      catalogDetail ? h('div', { style: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary, #a08447)', marginTop: 2, wordBreak: 'break-word' } }, catalogDetail) : null,
+      h('button', { onClick: () => { reloadCatalog() }, style: { marginTop: 8 } }, t('retry')),
     ) : null,
     strategies.map((s, i) => h(StrategyEditor, {
       key: i,
+      index: i,
       strategy: s,
       providers,
       models,
@@ -259,10 +262,27 @@ function PolicySettingsSection({ rpc, t }) {
       t,
       narrow,
     })),
-    h('button', { onClick: addStrategy, style: { marginBottom: 12 } }, t('addStrategy')),
-    h('div', { style: { border: '1px dashed var(--dsw-alias-border-l3, #bbb)', borderRadius: 8, padding: 10, marginBottom: 12, maxWidth: '100%', boxSizing: 'border-box' } },
-      h('div', { style: { fontSize: '13px', fontWeight: 600, marginBottom: 4 } }, t('advancedSupportTitle')),
-      h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, #888)', marginBottom: 6 } }, t('advancedSupportHint')),
+    // 整宽虚线按钮：把「添加」表达成一个可点击的插槽，而不是和保存按钮同级的实心按钮。
+    h('button', {
+      onClick: addStrategy,
+      style: {
+        display: 'block',
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: '8px 10px',
+        marginBottom: 12,
+        border: '1px dashed var(--dsw-alias-border-l3, #ccc)',
+        borderRadius: 10,
+        background: 'transparent',
+        color: 'var(--dsw-alias-label-secondary, #666)',
+        fontSize: 13,
+        lineHeight: '20px',
+        cursor: 'pointer',
+      },
+    }, t('addStrategy')),
+    h('div', { style: { border: '1px solid var(--dsw-alias-border-l1, #e3e3e3)', borderRadius: 10, padding: 12, marginBottom: 12, maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' } },
+      h('div', { style: { fontSize: 13, lineHeight: '20px', fontWeight: 600, color: 'var(--dsw-alias-label-primary, #111)', marginBottom: 2 } }, t('advancedSupportTitle')),
+      h('div', { style: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary, #888)', marginBottom: 10 } }, t('advancedSupportHint')),
       h(ModelPicker, {
         label: t('advancedSupportModel'),
         value: advancedSupport,
@@ -276,13 +296,16 @@ function PolicySettingsSection({ rpc, t }) {
         narrow,
       }),
     ),
-    saveError
-      ? h('div', { style: { color: 'var(--dsw-alias-state-error-primary, #c00)', fontSize: '12px', marginBottom: 8, wordBreak: 'break-word' } }, t('saveFailed', { detail: pvSaveErrorText(saveError, t) }))
-      : (savedAt
-        // DSH 没有 success 语义 token（只有 business/error/warn），所以用已验证存在的
-        // label-secondary 做中性状态行，不发明不存在的 token。
-        ? h('div', { style: { color: 'var(--dsw-alias-label-secondary, #555)', fontSize: '12px', marginBottom: 8 } }, t('saved', { time: savedAt }))
-        : null),
-    h('button', { onClick: save, disabled: saving, style: { fontWeight: 600 } }, saving ? t('saving') : t('save')),
+    // 保存按钮与状态行同一行：状态紧贴动作，不需要在页面上找。
+    h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' } },
+      h('button', { onClick: save, disabled: saving, style: { fontWeight: 600 } }, saving ? t('saving') : t('save')),
+      saveError
+        ? h('div', { style: { color: 'var(--dsw-alias-state-error-primary, #c00)', fontSize: 12, lineHeight: '18px', minWidth: 0, wordBreak: 'break-word' } }, t('saveFailed', { detail: pvSaveErrorText(saveError, t) }))
+        : (savedAt
+          // DSH 没有 success 语义 token（只有 business/error/warn），所以用已验证存在的
+          // label-secondary 做中性状态行，不发明不存在的 token。
+          ? h('div', { style: { color: 'var(--dsw-alias-label-secondary, #555)', fontSize: 12, lineHeight: '18px' } }, t('saved', { time: savedAt }))
+          : null),
+    ),
   )
 }
