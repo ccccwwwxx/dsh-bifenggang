@@ -86,6 +86,8 @@ function PolicySettingsSection({ rpc, t }) {
   const [modelsError, setModelsError] = useState({})
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  // 由 get RPC 下发（node 端读 package.json），用来回答「现在跑的是哪一版」。
+  const [version, setVersion] = useState('')
   const [savedAt, setSavedAt] = useState('')
   const requested = useRef({})
 
@@ -149,6 +151,7 @@ function PolicySettingsSection({ rpc, t }) {
       setLoadError(pvErrorText(e))
       return
     }
+    setVersion(res && typeof res.version === 'string' ? res.version : '')
     const raw = res && res.config !== undefined ? res.config : res
     const cfg = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
     setConfig(cfg)
@@ -240,7 +243,11 @@ function PolicySettingsSection({ rpc, t }) {
 
   return h('div', { ref: sectionRef, style: { maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' } },
     h('div', { style: { fontSize: 15, lineHeight: '22px', fontWeight: 600, color: 'var(--dsw-alias-label-primary, #111)', marginBottom: 4 } }, t('title')),
-    h('div', { style: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary, #888)', marginBottom: 12 } }, t('subtitle')),
+    h('div', { style: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary, #888)', marginBottom: version ? 4 : 12 } }, t('subtitle')),
+    // 版本来自 node 端（读 package.json）：改完代码重启后能立刻确认加载的是哪一版。
+    version
+      ? h('div', { style: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary, #999)', marginBottom: 12 } }, `${t('versionLabel')} v${version}`)
+      : null,
     catalogDegraded ? h('div', {
       style: { border: '1px solid var(--dsw-alias-state-warn-primary, #e6c473)', background: 'var(--dsw-alias-bg-layer-1, #fff9e8)', borderRadius: 10, padding: 10, marginBottom: 12, maxWidth: '100%', boxSizing: 'border-box' },
     },

@@ -84,6 +84,29 @@ if (DEFAULTS.strategies.length > 0 && (!DEFAULTS.advancedSupport?.provider || !D
   ok(`DEFAULTS: ${DEFAULTS.strategies.length} 条策略, 高级模型支援 ${DEFAULTS.advancedSupport.provider}/${DEFAULTS.advancedSupport.model}`)
 }
 
+// ---------- 6. 版本一致性 ----------
+// package.json 是版本的唯一来源；node 端在运行时读它（apply 日志 + get RPC）。
+// CHANGELOG 的最新条目必须与之一致，否则「版本」就只是个装饰。
+const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+const semver = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$/
+if (!semver.test(pkg.version)) {
+  bad(`package.json 的 version 不是合法 semver: ${pkg.version}`)
+} else {
+  ok(`版本: v${pkg.version} (semver)`)
+}
+const changelog = readFileSync(join(root, 'CHANGELOG.md'), 'utf8')
+const heading = changelog.match(/^##\s*\[?(\d+\.\d+\.\d+[^\]\s]*)\]?/m)
+if (!heading) bad('CHANGELOG.md 找不到 `## [x.y.z]` 形式的版本标题')
+else if (heading[1] !== pkg.version) bad(`CHANGELOG 最新版本 ${heading[1]} 与 package.json 的 ${pkg.version} 不一致`)
+else ok(`CHANGELOG 最新条目与 package.json 一致 (${pkg.version})`)
+
+// node 端必须真的把版本读出来（而不是硬编码一份会漂移的副本）
+if (/function readVersion\(\)/.test(nodeSrc) && /version: VERSION/.test(nodeSrc)) {
+  ok('版本在运行时被读取并随 get RPC 下发（非硬编码副本）')
+} else {
+  bad('node 端未从 package.json 读取版本 / 未随 get RPC 下发')
+}
+
 // ---------- 结果 ----------
 console.log(notes.join('\n'))
 if (failures.length) {

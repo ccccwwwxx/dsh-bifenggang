@@ -4,6 +4,8 @@
 
 DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKILL.md](./SKILL.md)。
 
+当前版本：**v0.9.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+
 ## 它做什么
 
 - **设置页「避峰岗」**：配置有序策略。每条策略 = 触发条件（生效星期 + 峰时窗口）+ 主模型（谷时）+ 可选副模型（峰时）；另有「高级模型支援」作为升维兜底，承接所有未命中策略的时刻。
@@ -19,7 +21,10 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
 - `src/client/*.js` — 客户端源码（开关 / 选择器 / 策略编辑 / 设置页 / 入口）
 - `lib/client.js` — **生成物**：由 `src/build-client.mjs` 拼接各 source 并注入 `lib/text.js` 文案，请勿手改
 - `src/build-client.mjs` — 客户端构建脚本
-- `scripts/verify.mjs` — 仓库自检
+- `scripts/verify.mjs` — 仓库自检（契约、不变式、版本一致性、产物新鲜度）
+- `scripts/roundtrip.test.mjs` — 副模型往返回归（防止形状错配复发）
+- `scripts/copy.test.mjs` — 界面文案单一来源与本地化映射检查
+- `CHANGELOG.md` — 变更记录与版本策略
 - `cordis.patch.yml` — 自激活 patch（bundle 安装用）
 - `package.json` — 插件清单（含 `dsh.client` 声明）
 
@@ -27,11 +32,13 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
 
 ```bash
 node src/build-client.mjs   # 重建 lib/client.js（改了 src/client 或 lib/text.js 后必跑）
-node scripts/verify.mjs     # 自检：文案 key 完整性/双语对称、client↔node RPC 契约、
-                           #     关键不变式（inject=['llm']、agent/request 带 prepend、
-                           #     无 registerAdapter/llm/stream 残留、未触碰会话模型选择器）、
-                           #     产物是否与源码一致
+npm run verify              # 三套检查：契约自检 + 副模型往返 + 文案/本地化
 ```
+
+`npm run verify` 覆盖：文案 key 完整性/双语对称、client↔node RPC 契约、关键不变式
+（`inject=['llm']`、`agent/request` 带 `prepend`、无 `registerAdapter`/`llm/stream` 残留、
+未触碰会话模型选择器）、版本一致性（`package.json` ↔ `CHANGELOG.md`）、产物新鲜度、
+副模型形状往返、界面文案无硬编码中文。
 
 ## 安装
 
