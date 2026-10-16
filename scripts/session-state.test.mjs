@@ -207,6 +207,28 @@ check('a decoupled session keeps its own value across global flips (both directi
   if (await host.route('sessionC', SEED) !== SEED) throw new Error('after re-coupling, C must follow the global (OFF)')
 })
 
+check('the advanced thinking model is used ONLY when the request asks for max reasoning', async () => {
+  // Separate axis from the time plans: max thinking on the request -> advanced
+  // model; an ordinary request is never escalated to it. This is the definition
+  // whose absence silently pushed whole weekends onto the frontier model and
+  // drained its subscription quota pool.
+  const host = makeHostWithListener({ enabled: true })
+  const advanced = await host.route('sessionA', { ...SEED, reasoningEffort: 'max' })
+  if (advanced === SEED) throw new Error('a max-effort request must be routed')
+  eq(
+    { provider: advanced.provider, model: advanced.model },
+    { provider: DEFAULTS.advancedSupport.provider, model: DEFAULTS.advancedSupport.model },
+    'max effort target',
+  )
+
+  for (const effort of ['low', 'medium', 'high', 'xhigh']) {
+    const out = await host.route('sessionB', { ...SEED, reasoningEffort: effort })
+    if (out.provider === DEFAULTS.advancedSupport.provider && out.model === DEFAULTS.advancedSupport.model) {
+      throw new Error(`an effort=${effort} request must not be escalated to the advanced thinking model`)
+    }
+  }
+})
+
 check('the override map is bounded and evicts the least recently written session', async () => {
   const cap = 500
   const host = makeHostWithListener({ enabled: false })

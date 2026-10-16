@@ -128,7 +128,10 @@ for (let i = 0; i < OPS; i++) {
   const listeners = []
   const routes = new Map()
   const providers = [{ id: 'deepseek-official', name: 'DeepSeek' }, { id: 'codex', name: 'Codex' }]
-  const models = { 'deepseek-official': [{ id: 'deepseek-flash' }], codex: [{ id: 'gpt-5.6-luna' }] }
+  // The catalog must list every target the DEFAULT policy can pick, including the
+  // advancedSupport fallback: on a weekend/holiday no weekday strategy matches, so
+  // omitting it here made this phase fail by wall-clock day rather than by defect.
+  const models = { 'deepseek-official': [{ id: 'deepseek-flash' }], codex: [{ id: 'gpt-5.6-luna' }, { id: 'gpt-6-astra' }] }
   const llm = { listProviders: () => providers, listModels: async (p) => models[p] ?? [] }
   const connection = { fetch: { register: (r) => { routes.set(r.path, r); return () => {} } } }
   const connCtx = { get: (n) => (n === 'connection' ? connection : undefined), effect: (fn) => { fn(); return () => {} } }

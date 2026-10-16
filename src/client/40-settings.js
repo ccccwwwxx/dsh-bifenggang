@@ -72,8 +72,18 @@ function pvNormalizeProviders(res) {
   return list
 }
 
-function PolicySettingsSection({ rpc, t }) {
-  const h = React.createElement
+// node 端下发的 reason 翻成人话。未知值回落到「无可用目标」而不是崩掉，
+// 这样未来宿主/策略扩展新原因时界面最多是措辞不准，不会白屏。
+function pvActiveReasonText(reason, t) {
+  if (reason === 'peak') return t('reasonPeak')
+  if (reason === 'primary') return t('reasonPrimary')
+  if (reason === 'fallback-first-primary') return t('reasonFallbackFirst')
+  if (reason === 'advanced-only') return t('reasonAdvancedOnly')
+  if (reason === 'advanced-max') return t('reasonAdvancedMax')
+  return t('reasonNone')
+}
+
+function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
   // 按「本区块自身容器宽度」判断宽窄：设置面板常比窗口窄（分屏、窄窗口），
   // 用窗口宽度会把三个下拉硬挤在一行。
   const [sectionRef, narrow] = useContainerWidth(640)
@@ -88,6 +98,9 @@ function PolicySettingsSection({ rpc, t }) {
   const [saveError, setSaveError] = useState('')
   // 由 get RPC 下发（node 端读 package.json），用来回答「现在跑的是哪一版」。
   const [version, setVersion] = useState('')
+  // 由 get RPC 下发：此刻生效的目标模型 + 为什么（峰时/平时/兜底），
+  // 让「周末被兜底到高级模型」这类行为在界面上直接可见，而不是像故障。
+  const [active, setActive] = useState(null)
   const [savedAt, setSavedAt] = useState('')
   const requested = useRef({})
 
@@ -152,6 +165,7 @@ function PolicySettingsSection({ rpc, t }) {
       return
     }
     setVersion(res && typeof res.version === 'string' ? res.version : '')
+    setActive(res && res.active && typeof res.active === 'object' ? res.active : null)
     const raw = res && res.config !== undefined ? res.config : res
     const cfg = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
     setConfig(cfg)
@@ -246,7 +260,14 @@ function PolicySettingsSection({ rpc, t }) {
     h('div', { style: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary, #888)', marginBottom: version ? 4 : 12 } }, t('subtitle')),
     // 版本来自 node 端（读 package.json）：改完代码重启后能立刻确认加载的是哪一版。
     version
-      ? h('div', { style: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary, #999)', marginBottom: 12 } }, `${t('versionLabel')} v${version}`)
+      ? h('div', { style: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary, #999)', marginBottom: active && active.model ? 4 : 12 } }, `${t('versionLabel')} v${version}`)
+      : null,
+    // 此刻生效的目标 + 原因。周末/假期会落到「高级模型支援」兜底——这是设计行为，
+    // 但此前只体现在 debug.log 里，看着像故障；这里直接写明。
+    active && active.model
+      ? h('div', { style: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary, #999)', marginBottom: 12 } },
+          `${t('activeNowLabel')} ${active.provider}/${active.model}${active.reasoningEffort ? '@' + active.reasoningEffort : ''} · ${pvActiveReasonText(active.reason, t)}`
+          + (active.advancedForMax ? t('advancedForMax', { model: active.advancedForMax }) : ''))
       : null,
     catalogDegraded ? h('div', {
       style: { border: '1px solid var(--dsw-alias-state-warn-primary, #e6c473)', background: 'var(--dsw-alias-bg-layer-1, #fff9e8)', borderRadius: 10, padding: 10, marginBottom: 12, maxWidth: '100%', boxSizing: 'border-box' },

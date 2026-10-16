@@ -116,6 +116,49 @@ check('peak time resolves to the chosen peak model (not the primary)', () => {
   eqJson(picked, PEAK, 'peak selection')
 })
 
+// The reason is what makes a surprising target explainable in the log and the
+// settings page. A weekday-only policy falls back to advancedSupport all weekend:
+// correct by design, but indistinguishable from a bug without this.
+check('every branch reports WHY it was chosen (peak / primary / weekend / holiday)', () => {
+  const cfg = mod.normalizeConfig(flatInput)
+  const at = (iso) => mod.resolveSelectionDetailed(new Date(iso), cfg)
+
+  const peak = at('2026-10-14T02:00:00Z') // Wed 10:00 Beijing, inside 09:00-12:00
+  if (peak.reason !== 'peak') throw new Error(`Wed 10:00 must be reason=peak, got ${peak.reason}`)
+  if (peak.holiday !== false || peak.weekday !== 3) throw new Error(`context wrong: weekday=${peak.weekday} holiday=${peak.holiday}`)
+
+  const primary = at('2026-10-14T06:00:00Z') // Wed 14:00 Beijing, outside every window
+  if (primary.reason !== 'primary') throw new Error(`Wed 14:00 must be reason=primary, got ${primary.reason}`)
+  eqJson(primary.selection, flatInput.strategies[0].primary, 'off-peak selection')
+
+  const weekend = at('2026-10-17T02:00:00Z') // Sat 10:00 Beijing: no plan matches
+  if (weekend.reason !== 'fallback-first-primary') throw new Error(`Sat must be reason=fallback-first-primary, got ${weekend.reason}`)
+  // The unmatched case resolves to the FIRST plan's primary — never to the advanced
+  // thinking model, which is a separate axis (see the max-effort branch).
+  eqJson({ provider: weekend.selection.provider, model: weekend.selection.model }, { provider: cfg.strategies[0].primary.provider, model: cfg.strategies[0].primary.model }, 'weekend uses the first plan primary')
+
+  // A holiday ON a weekday still matches the strategy — but the peak window is
+  // skipped (holidays run off-peak), so the reason is `primary`.
+  const holidayCfg = mod.normalizeConfig({ ...flatInput, holidays: [[2026, 10, 14]] })
+  const holiday = mod.resolveSelectionDetailed(new Date('2026-10-14T02:00:00Z'), holidayCfg)
+  if (holiday.reason !== 'primary') throw new Error(`a weekday holiday must skip the peak window, got reason=${holiday.reason}`)
+  if (holiday.holiday !== true) throw new Error('the holiday flag must be reported')
+  eqJson({ provider: holiday.selection.provider, model: holiday.selection.model }, { provider: cfg.strategies[0].primary.provider, model: cfg.strategies[0].primary.model }, 'weekday holiday uses the primary')
+
+  // A holiday that matches no weekday at all behaves like any other unmatched day.
+  const satHoliday = mod.resolveSelectionDetailed(new Date('2026-10-17T02:00:00Z'), mod.normalizeConfig({ ...flatInput, holidays: [[2026, 10, 17]] }))
+  if (satHoliday.reason !== 'fallback-first-primary') throw new Error(`an unmatched holiday must report fallback-first-primary, got ${satHoliday.reason}`)
+
+  // With no plans at all, advancedSupport is the only configured target — that is
+  // not an escalation, and it says so.
+  const bare = mod.resolveSelectionDetailed(new Date('2026-10-17T02:00:00Z'), mod.normalizeConfig({ strategies: [], advancedSupport: { provider: 'codex', model: 'gpt-6-astra' } }))
+  if (bare.reason !== 'advanced-only') throw new Error(`empty plans must report reason=advanced-only, got ${bare.reason}`)
+
+  // Nothing configured at all is reported, not silently guessed.
+  const empty = mod.resolveSelectionDetailed(new Date('2026-10-17T02:00:00Z'), mod.normalizeConfig({ strategies: [], advancedSupport: {} }))
+  if (empty.reason !== 'none' || empty.selection !== null) throw new Error(`empty policy must report reason=none, got ${empty.reason}`)
+})
+
 check('save #1 echoes a peak the picker can render', async () => {
   const first = await call('set', { config: flatInput })
   if (first.ok !== true) throw new Error(`set failed: ${JSON.stringify(first.error)}`)

@@ -5,7 +5,7 @@ description: "避峰岗：谷时让 DeepSeek 扛大梁，峰时换 ChatGPT Plus 
 
 # 避峰岗（Peak Avoidance Post）
 
-> 当前版本 **v0.11.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在「设置 → 避峰岗」标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+> 当前版本 **v0.12.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在「设置 → 避峰岗」标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
 
 站岗的人都知道：该换班就换班，别死磕。DeepSeek 的 API 现在也是这个道理——峰时价格翻倍、谷时半价。避峰岗就是给你的模型调用排一张「换班表」：谷时让 DeepSeek 干苦力（便宜），峰时换 ChatGPT Plus 顶班（订阅费反正已经付了）。
 
@@ -24,7 +24,7 @@ DeepSeek 官方峰谷定价（2026-08-17 起）：
 1. **多策略**：从你已经配置好的 API（DeepSeek、ChatGPT Plus/codex 等）里挑来源，给每条策略指定「API × 主模型名」。
 2. **峰谷副模型**：主模型里可开启峰谷选项，峰时自动切到副模型。
 3. **触发条件**：每条策略写一句文字描述（对应它的时间条件），按顺序首条命中生效。
-4. **互斥策略**：所有策略都没命中时兜底；**设了策略就必须配互斥策略**，否则直接报错。
+4. **高级思考模型**：与时间无关的独立一档，只在会话要求 `max` 思考时启用；**设了策略就必须配它**（旧名 `exclusive`），但它不再充当"未命中就兜底"的角色——未命中用第一条策略的主模型。
 5. **GUI 配置**：设置页里直接增删改策略，不用手改 JSON。
 
 默认换班表示例：
@@ -58,13 +58,13 @@ config:
         provider: codex          # 副模型（峰时）
         model: gpt-5.6-luna
         reasoningEffort: max
-  exclusive:                     # 互斥策略（必填兜底）
-    provider: deepseek-official
-    model: deepseek-flash
-    reasoningEffort: high
+  advancedSupport:               # 高级思考模型（另一根轴，不是兜底）
+    provider: codex
+    model: gpt-6-astra
+    reasoningEffort: max
 ```
 
-路由规则：当前时刻命中某条策略 → 用它的主模型（峰时窗内用副模型）；全部未命中 → 用互斥策略。用户在会话里**显式选的模型永远优先**，不会被覆盖。
+路由规则：当前时刻命中某条策略 → 用它的主模型（峰时窗内用副模型）；**全部未命中（周末/假期）→ 用第一条策略的主模型**；**高级思考模型只在会话本身要求 `max` 思考时使用**，与时间无关，不会被当作未命中的兜底（旧定义会因此把整个周末顶到最贵的模型上）。`exclusive` 是 `advancedSupport` 的旧名，仍兼容。设置页顶部会写明「此刻生效：model@effort · 原因」。
 
 ## 依赖注意
 

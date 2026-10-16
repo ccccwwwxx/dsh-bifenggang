@@ -1,6 +1,6 @@
 {
   "name": "dsh-peak-valley-router",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Peak/off-peak multi-model routing policy engine for DeepSeek Harness, with a Settings GUI.",
   "license": "MIT",
   "type": "module",
@@ -36,6 +36,6 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-llm": "^0.1.1-rc.2 || ^0.1.7-rc.1 || 0.2.0-rc.2"
+    "@deepseek-ai/dsh-llm": "^0.1.1-rc.2 || ^0.1.7-rc.1 || ^0.2.0-rc.2"
   }
 }
