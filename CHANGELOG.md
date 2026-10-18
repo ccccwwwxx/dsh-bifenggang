@@ -16,6 +16,73 @@
 
 **1.0 的条件**：路由语义与配置格式冻结，并经过若干个版本的实际使用。在那之前的破坏性变更会写在下面。
 
+## [0.13.0] - 2026-10-18
+
+**新核心 0.2.1-rc.2 适配版**：逐条核对接缝、在真核心上跑过，结论是**代码不用改，声明的兼容区间必须改**。
+
+### 背景
+
+桌面端 `0.12.0` 仍绑宿主包 `0.2.0-rc.2`；npm 上 `@deepseek-ai/dsh` 的 `next` 是 **`0.2.1-rc.2`**
+（`latest` 仍是 `0.2.0-rc.2`）。本版是拿 `0.2.1-rc.2` 的独立核心（`core-switch.ps1` 那一套）逐项验的。
+
+### 接缝核对（先看目录，再看真核心）
+
+用宿主自带的机器可读目录 `dsh-tool-cordis/lib/types/api-catalog.js` 做逐条比对
+（旧核心 609,169 字节 / 新核心 663,240 字节）：
+
+- **事件**：`agent/request`、`agent/request-error`、`llm/adapters-updated` 的签名与 waterfall/emit
+  模式**逐字相同**。新增的只有 `plugin-market/changed`。
+- **服务**：`agentDefaultModel` 的方法表完全相同（`currentSelection()` / `saveSelection()`）；
+  `llm` 只有**新增**（`imageRequestTarget()`、`prepareCall()` 多一个可选 `configure` 参数），
+  避峰岗用到的 `listProviders()` / `listModels(provider)` 没动；
+  `connection` 的 `fetch.register` / `rpc` 仍在（`operator` 改名 `browserPeer`，本插件没用它）。
+  服务总体是「多 8 个、少 1 个」：新增的 8 个（`workingDirectory` / `webApp` / `worktrees` / `translator` …）
+  与删掉的 1 个（`invariants`）都没有被本插件引用。
+- **cordis**：`4.0.4` → `4.0.5`；`{ global: true, prepend: true }` 这两个监听选项仍在
+  —— 也就是「避峰岗在 `agent/request` 里最外层改模型」这件事依然成立。
+- **客户端**：`sidebar.footer.action`、`conversation.input.left`、`sidebar.session.row.leading`、
+  `settings.section` 四个插槽都在；`ctx.locale.register/bind`、`connection.rpc.call('/api', …)`
+  签名不变。
+
+### 实测（0.2.1-rc.2 独立核心，隔离 DSH_HOME）
+
+- 插件装进 profile 后正常加载：`apply: v0.12.0, enabled=true, … llm -> true`。
+- 三条 RPC（`get` / `providers` / `models`）全部 **HTTP 200**；`get` 里的 `active` 决策正确
+  （周日 → `fallback-first-primary`），说明策略引擎与 `llm.listProviders()` 在新核心上都在工作。
+- 客户端模块确实被宿主打包下发：`dsh-peak-valley-router` 出现在 page 预载的 client bundle 里。
+- 用 `dsh --profile headless --patch`（只把插件插进这一棵树）真跑了一个 turn：
+  `agent/request: routed model "deepseek-official/deepseek-flash" is not in the provider catalog`
+  —— 该 home 没有 `DEEPSEEK_API_KEY`，请求在 provider 层以 `MISSING_CREDENTIAL` 结束（零 token 消耗），
+  但**接缝真的被执行了**，这一行就是证据。
+- 最后把它装进真正会被启用的那个 home（`home/0.2.1-rc.2-shared`，会话与桌面端共享）再跑一次：
+  `apply: v0.13.0, enabled=false, … llm -> true`；`get` 回包的 `version` 是 `0.13.0`；
+  客户端模块同样出现在该 home 下发的 client bundle 里。安装用 `dsh plugin --profile web add <本仓库>`，
+  但 CLI 只写了 `dependencies`、**没有把包名加进 `dsh.profile.bundles`**，手动补一行才被加载。
+- 该 home 里组件默认仍是**关闭**（`state.json` 未写，行为与未装插件一致），要不要打开由你决定。
+
+### 修复（唯一硬阻塞）
+
+`peerDependencies` 里的 `@deepseek-ai/dsh-llm` 原本是 `^0.2.0-rc.2`，而它**不接受 `0.2.1-rc.2`**：
+semver 里预发布版本只能被「点名了同一个 `[major, minor, patch]` 三元组」的区间接受，
+`0.2.1-rc.2` 与 `0.2.0-rc.2` 不是同一个三元组（实测 `satisfies('0.2.1-rc.2', '^0.2.0-rc.2') === false`）。
+接缝全是好的，但强制 peer 的插件管理器会因此把安装/激活判成「与宿主不兼容」。
+
+- 区间改为 **`^0.2.0-rc.2 || ^0.2.1-rc.2`**（后续每条 rc 线都要显式加一项，不会被 `^0.2.x` 自动带入）。
+- 同时去掉 `^0.1.1-rc.2` / `^0.1.7-rc.1`：那两条是历史声明，当前代码没有在 0.1.x 上验过；
+  留着等于宣称一种没人测过的兼容。
+
+### 新增
+
+- `scripts/host-compat.test.mjs`：把「声明的区间必须接受已实测宿主、且必须排除相邻 rc 线与大版本」
+  钉成回归测试，并**自带反控**（先断言 `^0.2.0-rc.2` 拒绝 `0.2.1-rc.2`，证明检查器不是恒真）。
+  已接进 `npm test` 与 `npm run verify`。
+
+### 顺带观察（未改，留档）
+
+手工编辑 `state.json` 时若带 UTF-8 BOM，`JSON.parse` 会抛错，插件按「关闭」静默处理
+（验证过程中踩到一次）。GUI 写出的文件没有 BOM，所以只影响手工编辑；要修的话是在解析前剥掉 BOM，
+属于独立的一件事，不混进本版。
+
 ## [0.12.0] - 2026-10-17
 
 **DSH 0.12.0 兼容版**：逐个核对最新宿主的接缝，并把「此刻为什么是这台模型」变成界面上看得见的一行。

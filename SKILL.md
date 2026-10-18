@@ -5,7 +5,9 @@ description: "避峰岗：谷时让 DeepSeek 扛大梁，峰时换 ChatGPT Plus 
 
 # 避峰岗（Peak Avoidance Post）
 
-> 当前版本 **v0.12.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在「设置 → 避峰岗」标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+> 当前版本 **v0.13.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在「设置 → 避峰岗」标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+>
+> 宿主兼容：已在 `@deepseek-ai/dsh` **0.2.0-rc.2**（桌面端 0.12.0）与 **0.2.1-rc.2**（npm `next`）上实测；`peerDependencies` 逐条声明这两条线，新 rc 线要显式加进去（见 `scripts/host-compat.test.mjs`）。
 
 站岗的人都知道：该换班就换班，别死磕。DeepSeek 的 API 现在也是这个道理——峰时价格翻倍、谷时半价。避峰岗就是给你的模型调用排一张「换班表」：谷时让 DeepSeek 干苦力（便宜），峰时换 ChatGPT Plus 顶班（订阅费反正已经付了）。
 

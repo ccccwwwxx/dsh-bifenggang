@@ -4,7 +4,9 @@
 
 DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKILL.md](./SKILL.md)。
 
-当前版本：**v0.12.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+当前版本：**v0.13.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+
+宿主兼容：已在 `@deepseek-ai/dsh` **0.2.0-rc.2**（桌面端 0.12.0 绑定的宿主包）与 **0.2.1-rc.2**（npm `next`，即「新核心」）上逐条核过接缝并实测加载；`peerDependencies` 逐条声明这两条线，**新的 rc 线不会被 `^0.2.x` 自动带入**，需要显式加一项——`scripts/host-compat.test.mjs` 会因此变红。
 
 ## 它做什么
 
@@ -33,6 +35,7 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
 - `scripts/roundtrip.test.mjs` — 副模型往返回归（防止形状错配复发）
 - `scripts/copy.test.mjs` — 界面文案单一来源与本地化映射检查
 - `scripts/session-state.test.mjs` — 每会话状态语义（覆盖 / 跟随默认 / 清除 / 容量上限 / 会话 id 读取）
+- `scripts/host-compat.test.mjs` — 宿主兼容回归：声明的 `peerDependencies` 必须接受**已实测的宿主线**（`0.2.0-rc.2` / `0.2.1-rc.2`）、并且必须排除相邻 rc 线与大版本；自带反控（先证明检查器会拒绝 `0.2.1-rc.2` 之于 `^0.2.0-rc.2`）
 - `scripts/session-fuzz.mjs` — 随机化差分属性测试：200 次随机操作 × 12 个探针 id（含 `__proto__`、`constructor`、超长与 Unicode id），**期望值独立地从 `state.json` 重算**，用来抓跨会话串扰与身份透传违规（`npm run fuzz`，可传种子）
 - `CHANGELOG.md` — 变更记录与版本策略
 - `cordis.patch.yml` — 自激活 patch（bundle 安装用）
@@ -42,7 +45,7 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
 
 ```bash
 node src/build-client.mjs   # 重建 lib/client.js（改了 src/client 或 lib/text.js 后必跑）
-npm run verify              # 五套检查（只读，不写任何产物）
+npm run verify              # 六套检查（只读，不写任何产物）
 npm run fuzz                # 只跑随机化差分属性测试（可传随机种子）
 ```
 
@@ -50,7 +53,7 @@ npm run fuzz                # 只跑随机化差分属性测试（可传随机�
 （`inject=['llm']`、`agent/request` 带 `prepend`、无 `registerAdapter`/`llm/stream` 残留、
 未触碰会话模型选择器）、版本一致性（`package.json` ↔ `CHANGELOG.md` ↔ `README.md`/`SKILL.md`
 的「当前版本」）、产物新鲜度（**构建到临时文件比对，不重写仓库里的产物**）、仓库顶层文件集合、
-副模型形状往返、界面文案无硬编码中文、每会话状态语义、随机化差分属性测试。
+副模型形状往返、界面文案无硬编码中文、每会话状态语义、宿主兼容区间（含反控）、随机化差分属性测试。
 
 ## 安装
 
