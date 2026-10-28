@@ -102,6 +102,7 @@ function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
   // 让「周末被兜底到高级模型」这类行为在界面上直接可见，而不是像故障。
   const [active, setActive] = useState(null)
   const [savedAt, setSavedAt] = useState('')
+  const [toast, setToast] = useState('')
   const [refreshingCatalog, setRefreshingCatalog] = useState(false)
   const catalogRefresh = useRef(false)
   const requested = useRef({})
@@ -247,13 +248,17 @@ function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
     setSaving(true)
     setSaveError('')
     setSavedAt('')
+    setToast('')
     try {
       const next = await rpc.set(config)
       const raw = next && next.config !== undefined ? next.config : next
       setConfig(raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : config)
       // 明确的成功反馈：此前保存成功后界面毫无变化，用户无法区分「存上了」和「点了没反应」。
-      setSavedAt(new Date().toLocaleTimeString())
+      const time = new Date().toLocaleTimeString()
+      setSavedAt(time)
+      setToast(t('saveToast', { time }))
     } catch (e) {
+      setToast('')
       setSaveError(pvErrorText(e))
     } finally {
       setSaving(false)
@@ -345,7 +350,9 @@ function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' } },
       h('button', { onClick: save, disabled: saving, style: { fontWeight: 600 } }, saving ? t('saving') : t('save')),
       saveError
-        ? h('div', { style: { color: 'var(--dsw-alias-state-error-primary, #c00)', fontSize: 12, lineHeight: '18px', minWidth: 0, wordBreak: 'break-word' } }, t('saveFailed', { detail: pvSaveErrorText(saveError, t) }))
+        ? h('div', { role: 'alert', style: { color: 'var(--dsw-alias-state-error-primary, #c00)', fontSize: 12, lineHeight: '18px', minWidth: 0, wordBreak: 'break-word' } }, t('saveFailed', { detail: pvSaveErrorText(saveError, t) }))
+        : toast
+          ? h('div', { role: 'status', 'aria-live': 'polite', style: { color: 'var(--dsw-alias-state-success-primary, #16794c)', fontSize: 12, lineHeight: '18px', fontWeight: 600 } }, toast)
         : (savedAt
           // DSH 没有 success 语义 token（只有 business/error/warn），所以用已验证存在的
           // label-secondary 做中性状态行，不发明不存在的 token。

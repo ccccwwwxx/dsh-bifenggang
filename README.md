@@ -4,7 +4,7 @@
 
 DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKILL.md](./SKILL.md)。
 
-当前版本：**v0.14.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+当前版本：**v0.14.1**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
 
 宿主兼容：已在 `@deepseek-ai/dsh` **0.2.0-rc.2**（桌面端 0.12.0 绑定的宿主包）与 **0.2.1-rc.2**（npm `next`，即「新核心」）上逐条核过接缝并实测加载；`peerDependencies` 逐条声明这两条线，**新的 rc 线不会被 `^0.2.x` 自动带入**，需要显式加一项——`scripts/host-compat.test.mjs` 会因此变红。
 
