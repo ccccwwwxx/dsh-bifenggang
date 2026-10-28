@@ -68,7 +68,8 @@ function makeHostWithListener(options = {}) {
     return (await (await route.fetch(req)).json()).result
   }
   const agentFor = (id) => (id === null ? undefined
-    : options.sessionIdPath === 'getter' ? { session: { id } } : { session: { header: { id } } })
+    : options.sessionIdPath === 'direct' ? { id }
+      : options.sessionIdPath === 'getter' ? { session: { id } } : { session: { header: { id } } })
   /** Run the plugin's agent/request listener for one session. */
   const route = async (sessionId, seed) => {
     const listener = recorded['agent/request'][0]
@@ -80,6 +81,13 @@ function makeHostWithListener(options = {}) {
 }
 
 const SEED = { provider: 'deepseek-official', model: 'deepseek-chat', reasoningEffort: 'low', sessionId: 'x' }
+
+check('current core agent.id honors per-session overrides', async () => {
+  const host = makeHostWithListener({ enabled: false, sessions: { sessionA: true }, sessionIdPath: 'direct' })
+  const out = await host.route('sessionA', SEED)
+  if (out === SEED) throw new Error('direct session id did not route')
+  if (await host.route('sessionB', SEED) !== SEED) throw new Error('other session was routed')
+})
 
 check('global off + no override -> the resolved request is returned by identity', async () => {
   const host = makeHostWithListener({ enabled: false })

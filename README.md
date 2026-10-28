@@ -4,9 +4,13 @@
 
 DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKILL.md](./SKILL.md)。
 
-当前版本：**v0.13.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+当前版本：**v0.14.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
 
 宿主兼容：已在 `@deepseek-ai/dsh` **0.2.0-rc.2**（桌面端 0.12.0 绑定的宿主包）与 **0.2.1-rc.2**（npm `next`，即「新核心」）上逐条核过接缝并实测加载；`peerDependencies` 逐条声明这两条线，**新的 rc 线不会被 `^0.2.x` 自动带入**，需要显式加一项——`scripts/host-compat.test.mjs` 会因此变红。
+
+当前 npm `next` 为 **0.2.1-rc.4**，现有 `^0.2.1-rc.2` 已接受同一三元组的 rc.4（不是每次 rc 编号增加都要新增范围）；本版核对了现场公开 Host 接口并修复 `agent.id` 兼容问题，尚未完成 rc.4 独立启动与真实页面验收。
+
+设置页的 **刷新模型列表** 会重新拉取 Provider 和模型，不重载配置、不保存策略，也不清空尚未保存的选择；刷新时禁用重复点击，失败显示错误并保留旧目录。刷新读取宿主当前提供的模型列表，不承诺清除第三方适配器内部缓存。
 
 ## 它做什么
 

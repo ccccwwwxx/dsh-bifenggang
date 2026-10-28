@@ -102,6 +102,8 @@ function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
   // 让「周末被兜底到高级模型」这类行为在界面上直接可见，而不是像故障。
   const [active, setActive] = useState(null)
   const [savedAt, setSavedAt] = useState('')
+  const [refreshingCatalog, setRefreshingCatalog] = useState(false)
+  const catalogRefresh = useRef(false)
   const requested = useRef({})
 
   // 拉取单个 provider 的模型：requested 去重；失败后清除标记以便重试。
@@ -141,7 +143,7 @@ function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
       setProvidersError('')
       return list
     } catch (e) {
-      setProviders([])
+      // Keep the last usable catalog when a refresh fails.
       setProvidersError(pvErrorText(e))
       return []
     }
@@ -182,15 +184,23 @@ function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
 
   // 目录（providers / models）失败后的重试：不动已加载的配置。
   const reloadCatalog = useCallback(async () => {
+    if (catalogRefresh.current) return
+    catalogRefresh.current = true
+    setRefreshingCatalog(true)
     setProvidersError('')
     setModelsError({})
-    const list = await loadProviders()
-    const used = [...pvUsedProviderIds(config)]
-    const ids = used.concat(list.map((p) => p.id).filter((id) => used.indexOf(id) < 0))
-    await Promise.all(ids.map((id) => {
-      requested.current[id] = false
-      return fetchModels(id)
-    }))
+    try {
+      const list = await loadProviders()
+      const used = [...pvUsedProviderIds(config)]
+      const ids = used.concat(list.map((p) => p.id).filter((id) => used.indexOf(id) < 0))
+      await Promise.all(ids.map((id) => {
+        requested.current[id] = false
+        return fetchModels(id)
+      }))
+    } finally {
+      catalogRefresh.current = false
+      setRefreshingCatalog(false)
+    }
   }, [loadProviders, fetchModels, config])
 
   if (!config) {
@@ -269,12 +279,19 @@ function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
           `${t('activeNowLabel')} ${active.provider}/${active.model}${active.reasoningEffort ? '@' + active.reasoningEffort : ''} · ${pvActiveReasonText(active.reason, t)}`
           + (active.advancedForMax ? t('advancedForMax', { model: active.advancedForMax }) : ''))
       : null,
+    h('div', { style: { marginBottom: 12 } },
+      h('button', {
+        onClick: () => { reloadCatalog() },
+        disabled: refreshingCatalog,
+        'aria-busy': refreshingCatalog,
+      }, refreshingCatalog ? t('refreshingModels') : t('refreshModels')),
+    ),
     catalogDegraded ? h('div', {
       style: { border: '1px solid var(--dsw-alias-state-warn-primary, #e6c473)', background: 'var(--dsw-alias-bg-layer-1, #fff9e8)', borderRadius: 10, padding: 10, marginBottom: 12, maxWidth: '100%', boxSizing: 'border-box' },
     },
       h('div', { style: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-state-warn-label, #8a6100)' } }, t('catalogUnavailable')),
       catalogDetail ? h('div', { style: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary, #a08447)', marginTop: 2, wordBreak: 'break-word' } }, catalogDetail) : null,
-      h('button', { onClick: () => { reloadCatalog() }, style: { marginTop: 8 } }, t('retry')),
+      h('button', { onClick: () => { reloadCatalog() }, disabled: refreshingCatalog, style: { marginTop: 8 } }, t('retry')),
     ) : null,
     strategies.map((s, i) => h(StrategyEditor, {
       key: i,

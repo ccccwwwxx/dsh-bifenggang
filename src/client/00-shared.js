@@ -15,8 +15,8 @@ function rpc(connection) {
   return {
     get: () => call('dsh-peak-valley-router.get', {}),
     set: (config) => call('dsh-peak-valley-router.set', { config }),
-    providers: () => call('dsh-peak-valley-router.providers', {}),
-    models: (provider) => call('dsh-peak-valley-router.models', { provider }),
+    providers: () => call('dsh-peak-valley-router.providers', { strict: true }),
+    models: (provider) => call('dsh-peak-valley-router.models', { provider, strict: true }),
     toggle: (payload) => call('dsh-peak-valley-router.toggle', typeof payload === 'boolean' ? { enabled: payload } : (payload || {})),
   }
 }
