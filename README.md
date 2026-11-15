@@ -4,7 +4,7 @@
 
 DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKILL.md](./SKILL.md)。
 
-当前版本：**v0.13.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+当前版本：**v0.13.1**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## 它做什么
 
@@ -27,6 +27,7 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
 | 插件版本 | DSH 宿主 | 端能力 |
 |---|---|---|
 | 0.13.0 | 0.12.0（`@deepseek-ai/dsh-*` 0.2.0-rc.2） | Web GUI ✓、桌面 WebView ✓、Headless/Node-only 仅路由 ✓、窄屏：设置页全局开关 ✓、composer 会话开关 ✓、小灯按宿主条件显示 |
+| 0.13.1 | 0.12.0（`@deepseek-ai/dsh-*` 0.2.0-rc.2） | 同 0.13.0；新增可审计的 CC-HAHA v0.7.8 集成补丁包 |
 | 0.13.0 | 0.12.x | 预期兼容；`engines.dsh` 允许 |
 | 0.13.0 | <0.12.0 | 不支持；`engines.dsh` 拒绝 |
 | 0.13.0 | >=0.14.0 | 未验证；`engines.dsh` 拒绝 |
@@ -100,6 +101,13 @@ dsh plugin --profile desktop add git+https://github.com/ccccwwwxx/dsh-bifenggang
 ```
 
 Node-only 模式没有设置页，`holidays` / `utcOffsetMinutes` / 策略都写在 `cordis.patch.yml` 或 `policy.json`。注意：`policy.json` 一旦存在，patch 里的 `config` 会被完全忽略（只用于首次播种）。
+
+## CC-HAHA 原生集成
+
+CC-HAHA 不使用 DSH 插件钩子。它的适配以 v0.7.8 源码补丁发布在
+`integrations/cc-haha/`，覆盖服务端按轮路由、桌面设置页、手机 `/m` 状态卡和
+远程最小权限白名单。补丁的安装、热修复和回滚步骤见
+[`integrations/cc-haha/README.md`](./integrations/cc-haha/README.md)。
 
 ## 峰谷规则
 
