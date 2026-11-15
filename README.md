@@ -83,9 +83,9 @@ https://cdn.jsdelivr.net/gh/ccccwwwxx/dsh-bifenggang@master/market/index.json
 
 ```bash
 # Web GUI
-dsh plugin --profile web add git+https://github.com/ccccwwwxx/dsh-bifenggang.git#<40-hex-commit>
+dsh plugin --profile web add git+https://github.com/ccccwwwxx/dsh-bifenggang.git#4392987163590fea3a89daccc3a663c6bdbded2d
 # 桌面端：先完全退出桌面应用
-dsh plugin --profile desktop add git+https://github.com/ccccwwwxx/dsh-bifenggang.git#<40-hex-commit>
+dsh plugin --profile desktop add git+https://github.com/ccccwwwxx/dsh-bifenggang.git#4392987163590fea3a89daccc3a663c6bdbded2d
 ```
 
 装完**重启对应端**，打开「设置 → 避峰岗」。首次进入会有三步引导：确认全局开关、配置模型、保存。

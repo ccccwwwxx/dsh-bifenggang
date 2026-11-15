@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "title": {
+    "en": "Peak Valley Router",
+    "zh": "避峰岗"
+  },
+  "description": {
+    "en": "Peak/off-peak model routing for DeepSeek Harness.",
+    "zh": "DeepSeek Harness 的峰谷模型路由插件。"
+  },
+  "plugins": [
+    {
+      "name": "dsh-peak-valley-router",
+      "title": {
+        "en": "Peak Valley Router",
+        "zh": "避峰岗"
+      },
+      "description": {
+        "en": "Route models by DeepSeek peak/off-peak windows.",
+        "zh": "按 DeepSeek 峰谷时段自动切换模型。"
+      },
+      "author": "ccccwwwxx",
+      "homepage": "https://github.com/ccccwwwxx/dsh-bifenggang",
+      "repository": {
+        "url": "https://github.com/ccccwwwxx/dsh-bifenggang"
+      },
+      "keywords": [
+        "dsh",
+        "deepseek-harness",
+        "peak",
+        "routing"
+      ],
+      "versions": [
+        {
+          "version": "0.13.0",
+          "publishTimestamp": 1794738054,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ccccwwwxx/dsh-bifenggang",
+            "commit": "4392987163590fea3a89daccc3a663c6bdbded2d"
+          },
+          "engines": {
+            "dsh": ">=0.12.0 <0.14.0"
+          }
+        }
+      ]
+    }
+  ]
+}
