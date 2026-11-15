@@ -83,7 +83,7 @@ function pvActiveReasonText(reason, t) {
   return t('reasonNone')
 }
 
-function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
+function PolicySettingsSection({ rpc, t, store }) {  const h = React.createElement
   // 按「本区块自身容器宽度」判断宽窄：设置面板常比窗口窄（分屏、窄窗口），
   // 用窗口宽度会把三个下拉硬挤在一行。
   const [sectionRef, narrow] = useContainerWidth(640)
@@ -103,6 +103,13 @@ function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
   const [active, setActive] = useState(null)
   const [savedAt, setSavedAt] = useState('')
   const requested = useRef({})
+  // 设置页顶部的全局开关与侧边栏/composer 共用同一份 store：窄屏侧边栏
+  // 收起时，这里是唯一能切换「全局默认」的入口。
+  const peak = usePeakRouting(store)
+  const [firstRun, setFirstRun] = useState(false)
+  const [holidaysText, setHolidaysText] = useState('')
+  const [utcOffsetText, setUtcOffsetText] = useState('480')
+  const [holidaysError, setHolidaysError] = useState('')
 
   // 拉取单个 provider 的模型：requested 去重；失败后清除标记以便重试。
   const fetchModels = useCallback(async (providerId) => {
@@ -169,6 +176,10 @@ function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
     const raw = res && res.config !== undefined ? res.config : res
     const cfg = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
     setConfig(cfg)
+    setFirstRun(Boolean(res && res.firstRun))
+    setHolidaysText(pvFormatHolidays(cfg.holidays))
+    setUtcOffsetText(String(cfg.utcOffsetMinutes ?? 480))
+    setHolidaysError('')
     const used = [...pvUsedProviderIds(cfg)]
     const list = await loadProviders()
     // 1) 配置里用到的 provider 先并行拉模型；2) 其余 provider 随后并行补齐。
@@ -234,13 +245,34 @@ function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
   const removeStrategy = (i) => updateConfig({ ...config, strategies: strategies.filter((_, j) => j !== i) })
 
   const save = async () => {
+    const parsed = pvParseHolidayText(holidaysText)
+    if (parsed.invalid.length > 0) {
+      setHolidaysError(t('holidaysInvalid', { count: parsed.invalid.length }))
+      return
+    }
+    setHolidaysError('')
+    const offset = Number(utcOffsetText)
+    if (!Number.isFinite(offset) || offset < -720 || offset > 840) {
+      setSaveError(t('utcOffsetInvalid'))
+      return
+    }
     setSaving(true)
     setSaveError('')
     setSavedAt('')
     try {
-      const next = await rpc.set(config)
+      const next = await rpc.set({
+        ...config,
+        utcOffsetMinutes: Math.round(offset),
+        holidays: parsed.holidays,
+      })
       const raw = next && next.config !== undefined ? next.config : next
-      setConfig(raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : config)
+      const normalized = raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? raw
+        : { ...config, utcOffsetMinutes: Math.round(offset), holidays: parsed.holidays }
+      setConfig(normalized)
+      setHolidaysText(pvFormatHolidays(normalized.holidays))
+      setUtcOffsetText(String(normalized.utcOffsetMinutes ?? 480))
+      setFirstRun(false)
       // 明确的成功反馈：此前保存成功后界面毫无变化，用户无法区分「存上了」和「点了没反应」。
       setSavedAt(new Date().toLocaleTimeString())
     } catch (e) {
@@ -268,6 +300,46 @@ function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
       ? h('div', { style: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary, #999)', marginBottom: 12 } },
           `${t('activeNowLabel')} ${active.provider}/${active.model}${active.reasoningEffort ? '@' + active.reasoningEffort : ''} · ${pvActiveReasonText(active.reason, t)}`
           + (active.advancedForMax ? t('advancedForMax', { model: active.advancedForMax }) : ''))
+      : null,
+    firstRun
+      ? h('div', {
+          style: { border: '1px solid var(--dsw-alias-border-l1, #e3e3e3)', borderRadius: 10, padding: 12, marginBottom: 12, background: 'var(--dsw-alias-bg-layer-1, #fff)' },
+        },
+          h('div', { style: { fontSize: 13, fontWeight: 600, marginBottom: 4, color: 'var(--dsw-alias-label-primary, #111)' } }, t('firstRunTitle')),
+          h('div', { style: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary, #555)' } }, t('firstRunBody')),
+          h('button', { onClick: () => setFirstRun(false), style: { marginTop: 8 } }, t('firstRunDismiss')),
+        )
+      : null,
+    peak.view
+      ? h('div', {
+          style: { border: '1px solid var(--dsw-alias-border-l1, #e3e3e3)', borderRadius: 10, padding: 12, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
+        },
+          h('div', { style: { flex: 1, minWidth: 200 } },
+            h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--dsw-alias-label-primary, #111)' } }, t('globalDefaultLabel')),
+            h('div', { style: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary, #888)' } },
+              t('globalDefaultHint')
+              + (Object.keys(peak.view.sessions || {}).length
+                ? t('decoupledCount', { count: Object.keys(peak.view.sessions || {}).length })
+                : '')),
+          ),
+          h('button', {
+            type: 'button',
+            role: 'switch',
+            'aria-checked': peak.view.enabled ? 'true' : 'false',
+            disabled: peak.view.busy === true,
+            onClick: () => { void peak.toggle(!peak.view.enabled) },
+            style: {
+              minWidth: 88,
+              padding: '6px 12px',
+              borderRadius: 999,
+              fontWeight: 600,
+              border: '1px solid ' + (peak.view.enabled ? 'var(--dsw-alias-state-business-primary, #4c8dff)' : 'var(--dsw-alias-border-l2, #ccc)'),
+              background: peak.view.enabled ? 'var(--dsw-alias-state-business-primary, #4c8dff)' : 'transparent',
+              color: peak.view.enabled ? '#fff' : 'var(--dsw-alias-label-primary, #111)',
+              cursor: peak.view.busy ? 'default' : 'pointer',
+            },
+          }, peak.view.busy ? t('globalDefaultBusy') : (peak.view.enabled ? t('globalDefaultOn') : t('globalDefaultOff'))),
+        )
       : null,
     catalogDegraded ? h('div', {
       style: { border: '1px solid var(--dsw-alias-state-warn-primary, #e6c473)', background: 'var(--dsw-alias-bg-layer-1, #fff9e8)', borderRadius: 10, padding: 10, marginBottom: 12, maxWidth: '100%', boxSizing: 'border-box' },
@@ -323,6 +395,41 @@ function PolicySettingsSection({ rpc, t }) {  const h = React.createElement
         t,
         narrow,
       }),
+    ),
+    h('div', { style: { border: '1px solid var(--dsw-alias-border-l1, #e3e3e3)', borderRadius: 10, padding: 12, marginBottom: 12, maxWidth: '100%', boxSizing: 'border-box' } },
+      h('div', { style: { fontSize: 13, lineHeight: '20px', fontWeight: 600, color: 'var(--dsw-alias-label-primary, #111)', marginBottom: 8 } }, t('timeSectionTitle')),
+      h('label', { style: { display: 'block', fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary, #666)', marginBottom: 4 } }, t('utcOffsetLabel')),
+      h('input', {
+        type: 'number',
+        min: -720,
+        max: 840,
+        step: 15,
+        value: utcOffsetText,
+        onChange: (event) => {
+          setUtcOffsetText(event.target.value)
+          setSavedAt('')
+          setSaveError('')
+        },
+        style: { width: 120, padding: '4px 8px', borderRadius: 8, border: '1px solid var(--dsw-alias-border-l2, #ccc)' },
+      }),
+      h('div', { style: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary, #999)', marginTop: 4 } }, t('utcOffsetHint')),
+      h('label', { style: { display: 'block', fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary, #666)', marginTop: 12, marginBottom: 4 } }, t('holidaysLabel')),
+      h('textarea', {
+        rows: 6,
+        value: holidaysText,
+        placeholder: t('holidaysPlaceholder'),
+        onChange: (event) => {
+          setHolidaysText(event.target.value)
+          setHolidaysError('')
+          setSavedAt('')
+          setSaveError('')
+        },
+        style: { width: '100%', boxSizing: 'border-box', padding: 8, fontFamily: 'monospace', fontSize: 12, lineHeight: '18px', borderRadius: 8, border: '1px solid var(--dsw-alias-border-l2, #ccc)' },
+      }),
+      holidaysError
+        ? h('div', { style: { color: 'var(--dsw-alias-state-error-primary, #c00)', fontSize: 12, lineHeight: '18px', marginTop: 4 } }, holidaysError)
+        : null,
+      h('div', { style: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary, #999)', marginTop: 4 } }, t('holidaysHint')),
     ),
     // 保存按钮与状态行同一行：状态紧贴动作，不需要在页面上找。
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' } },

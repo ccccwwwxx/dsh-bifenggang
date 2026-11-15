@@ -7,15 +7,21 @@ function apply(ctx) {
   const t = ctx.locale.bind(NS)
   const api = rpc(connection)
 
+  // One shared store for every surface: sidebar footer, composer, session row
+  // lights and the settings page's global switch all read/write the same state.
+  // Creating it here means a narrow screen (sidebar footer hidden) can still
+  // change the global default from Settings.
+  const store = createPeakRoutingStore(api)
+
   // 左侧「启用避峰岗」开关（实现见 10-toggle.js）。
-  registerToggle(ctx, { rpc: api, t })
+  registerToggle(ctx, { rpc: api, t, store })
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
     id: 'peak-valley-router',
     order: 95,
     label: () => t('nav'),
-    inject: () => ({ rpc: api, t }),
+    inject: () => ({ rpc: api, t, store }),
   }, PolicySettingsSection))
 }
 

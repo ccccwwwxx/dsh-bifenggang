@@ -62,6 +62,57 @@ function useContainerWidth(threshold) {
   return [ref, narrow]
 }
 
+// ---- 节假日编辑（纯函数，设置页与测试共用） ----
+// The node layer stores holidays as [year, month, day]; the settings textarea
+// speaks YYYY-MM-DD. Parse strictly here so an invalid line cannot reach
+// normalizeConfig and silently become a wrong holiday.
+function pvHolidayToText(holiday) {
+  if (!Array.isArray(holiday) || holiday.length !== 3) return ''
+  const [y, m, d] = holiday
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return ''
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+function pvFormatHolidays(holidays) {
+  return (Array.isArray(holidays) ? holidays : [])
+    .map(pvHolidayToText)
+    .filter(Boolean)
+    .join('\n')
+}
+
+function pvParseHolidayText(text) {
+  const tokens = String(text || '').split(/[\s,]+/).map((token) => token.trim()).filter(Boolean)
+  const holidays = []
+  const invalid = []
+  const seen = new Set()
+  for (const token of tokens) {
+    const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(token)
+    if (!match) {
+      invalid.push(token)
+      continue
+    }
+    const year = Number(match[1])
+    const month = Number(match[2])
+    const day = Number(match[3])
+    const date = new Date(Date.UTC(year, month - 1, day))
+    if (
+      year < 1970 || year > 2100 ||
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() !== month - 1 ||
+      date.getUTCDate() !== day
+    ) {
+      invalid.push(token)
+      continue
+    }
+    const key = `${year}-${month}-${day}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    holidays.push([year, month, day])
+  }
+  holidays.sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2])
+  return { holidays, invalid }
+}
+
 // ---- 「启用避峰岗」开关的共享状态源 ----
 // 侧边栏入口与 composer 备用入口必须读写同一份状态：两边各自 rpc.get 会撕裂状态，
 // 所以这里放一个极简订阅源，由 registerToggle 创建一次、注入给两个入口。

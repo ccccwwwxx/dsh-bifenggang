@@ -365,8 +365,9 @@ function registerToggle(ctx, deps) {
   if (!ctx || !ctx.slots || typeof ctx.slots.inject !== 'function' || typeof ctx.slots.register !== 'function') return
   if (!api || typeof api.get !== 'function' || typeof api.toggle !== 'function' || t === null) return
 
-  // 两个入口共享的唯一状态源（一次 rpc.get()）。
-  const store = createPeakRoutingStore(api)
+  // 两个入口共享的唯一状态源（一次 rpc.get()）。设置页顶部也读写它，
+  // 所以优先使用 90-apply.js 创建的那一份；单独调用时再自建。
+  const store = deps && deps.store ? deps.store : createPeakRoutingStore(api)
   const inject = () => ({ rpc: api, t, store })
 
   // 主入口：侧边栏底部（list / root），owner 传入 { wide }。

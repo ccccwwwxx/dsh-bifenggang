@@ -1,13 +1,35 @@
 {
   "name": "dsh-peak-valley-router",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Peak/off-peak multi-model routing policy engine for DeepSeek Harness, with a Settings GUI.",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "peak",
+    "off-peak",
+    "model-routing",
+    "deepseek"
+  ],
+  "homepage": "https://github.com/ccccwwwxx/dsh-bifenggang",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ccccwwwxx/dsh-bifenggang.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ccccwwwxx/dsh-bifenggang/issues"
+  },
+  "engines": {
+    "dsh": ">=0.12.0 <0.14.0",
+    "node": ">=22.19.0"
+  },
   "exports": {
     ".": "./lib/index.js",
-    "./client": "./lib/client.js"
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "files": [
     "lib",

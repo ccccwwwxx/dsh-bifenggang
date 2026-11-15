@@ -4,7 +4,7 @@
 
 DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKILL.md](./SKILL.md)。
 
-当前版本：**v0.12.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+当前版本：**v0.13.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## 它做什么
 
@@ -19,7 +19,20 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
   - **全局侧可见**：侧边栏开关的提示里会显示「· N 个已解耦」。
   - **已知限制**：行首位置由宿主条件渲染，下列四种行**不渲染**该插槽，小灯在这些时刻不显示——归档（archived）、空白（blank）、**正在运行**（显示状态点）、**有未读标记**。依据：`.recon/workspace.client.js` 里 `!row.archived && !row.blank && (showStatus ? … : unread ? … : renderSlot("sidebar.session.row.leading", …))`。这是宿主行为，插件不去改它。
   - 另需注意：小灯反映的是**开关意图**，不是"此刻一定生效"。若策略目标不在 provider 目录里（模型下线/改名），路由会**静默回落到会话原模型**，只在 `debug.log` 留一行——此时小灯仍是亮的。
-- **多端可用**：开关同时挂在左侧边栏底部与 composer 输入区左侧。窄屏（<1024px 侧边栏自动收起、Windows/macOS 收起态整列宽度为 0）时由 composer 入口兜底，两个入口共享同一份状态。
+- **多端可用**：开关同时挂在左侧边栏底部、composer 输入区左侧与设置页顶部。窄屏（<1024px 侧边栏自动收起、Windows/macOS 收起态整列宽度为 0）时由 composer 与设置页入口兜底，所有入口共享同一份状态。
+- **时间与时区可编辑**：设置页顶部可切换全局默认；`holidays`（法定节假日）与 `utcOffsetMinutes`（UTC 偏移）现在可直接在设置页编辑，不再只能手改 `policy.json`。
+
+## 兼容矩阵
+
+| 插件版本 | DSH 宿主 | 端能力 |
+|---|---|---|
+| 0.13.0 | 0.12.0（`@deepseek-ai/dsh-*` 0.2.0-rc.2） | Web GUI ✓、桌面 WebView ✓、Headless/Node-only 仅路由 ✓、窄屏：设置页全局开关 ✓、composer 会话开关 ✓、小灯按宿主条件显示 |
+| 0.13.0 | 0.12.x | 预期兼容；`engines.dsh` 允许 |
+| 0.13.0 | <0.12.0 | 不支持；`engines.dsh` 拒绝 |
+| 0.13.0 | >=0.14.0 | 未验证；`engines.dsh` 拒绝 |
+| 0.12.0 | 0.12.0 | 上一版；GUI 无全局总开关、节假日/时区只能手改 |
+
+**profile 隔离**：Web 与桌面端分别使用 `--profile web` / `--profile desktop`；在 Web 安装的插件不会出现在桌面端，反之亦然。桌面端安装前请完全退出应用。
 
 ## 目录
 
@@ -54,19 +67,39 @@ npm run fuzz                # 只跑随机化差分属性测试（可传随机�
 
 ## 安装
 
-1. 装成 bundle（推荐，GUI 生效）：
-   ```bash
-   dsh plugin --profile web add <本仓库路径或 git URL>
-   ```
-2. 或手工 patch `insert`（仅 Node 端，无 GUI）：
-   ```yaml
-   - insert:
-       - id: dsh-peak-valley-router
-         name: <本仓库/lib/index.js 绝对路径>
-         config: { ...见 SKILL.md 的配置结构... }
-   ```
+市场与 CLI 只负责“发现 / 指定版本”，最终安装仍是固定 commit 的 bundle。
 
-装完**重启 DSH**，打开「设置 → 避峰岗」即可在 GUI 里配置多模型协同策略。
+### 1. 插件市场索引（可选）
+
+DSH 不内置索引源。把下面这个 URL 添加到 Discover → 自定义插件索引：
+
+```text
+https://cdn.jsdelivr.net/gh/ccccwwwxx/dsh-bifenggang@master/market/index.json
+```
+
+> 索引未签名，安装前请核对确认框中的 git 仓库与 commit。
+
+### 2. CLI 一键安装（推荐）
+
+```bash
+# Web GUI
+dsh plugin --profile web add git+https://github.com/ccccwwwxx/dsh-bifenggang.git#<40-hex-commit>
+# 桌面端：先完全退出桌面应用
+dsh plugin --profile desktop add git+https://github.com/ccccwwwxx/dsh-bifenggang.git#<40-hex-commit>
+```
+
+装完**重启对应端**，打开「设置 → 避峰岗」。首次进入会有三步引导：确认全局开关、配置模型、保存。
+
+### 3. 手工 patch `insert`（仅 Node 端，无 GUI）
+
+```yaml
+- insert:
+    - id: dsh-peak-valley-router
+      name: <本仓库/lib/index.js 绝对路径>
+      config: { ...见 SKILL.md 的配置结构... }
+```
+
+Node-only 模式没有设置页，`holidays` / `utcOffsetMinutes` / 策略都写在 `cordis.patch.yml` 或 `policy.json`。注意：`policy.json` 一旦存在，patch 里的 `config` 会被完全忽略（只用于首次播种）。
 
 ## 峰谷规则
 
