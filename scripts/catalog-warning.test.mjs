@@ -328,6 +328,35 @@ check('saving the migrated config dismisses the legacy notice (and it stays gone
   eq(findWarning(reloaded.value, 'legacy-extra-strategies'), undefined, 'no warning after restart')
 })
 
+// t18: dropped holiday dates are visible (info) but never fatal.
+check('invalid holiday dates are dropped and surfaced as an info warning, then cleared on save', async () => {
+  const raw = JSON.parse(JSON.stringify(policyWith(LOW)))
+  raw.holidays = [[2026, 10, 1], [2026, 2, 30], [2027, 2, 29]]
+  const host = makeHost({ policy: raw })
+  await wait()
+  const got = await host.call('get', {})
+  // The policy is still fully usable: only the bad dates are gone.
+  eq(got.ok, true, 'config loads despite invalid holidays')
+  eq(got.value.config.utcOffsetMinutes, 480, 'offset intact')
+  eq(got.value.config.targets.low.valley, LOW, 'low target intact')
+  eq(got.value.config.holidays, [[2026, 10, 1]], 'only the real date survives')
+  // ...but the drop is not silent.
+  const warning = findWarning(got.value, 'invalid-holidays')
+  if (!warning) throw new Error('invalid-holidays warning must be raised')
+  eq([warning.severity, warning.extraCount], ['info', 2], 'info + dropped count')
+  if (!warning.detail.includes('ignored')) throw new Error('detail must explain the drop')
+  eq(warning.count, 1, 'one warning for the whole drop')
+  if (!host.debugLog().includes('warning: invalid-holidays')) throw new Error('the warning must be logged')
+
+  // A save without bad dates clears it (the GUI's save acknowledges the new list).
+  const good = JSON.parse(JSON.stringify(raw))
+  good.holidays = [[2026, 10, 1]]
+  const saved = await host.call('set', { config: good, expectedRevision: got.value.configRevision })
+  eq(saved.ok, true, 'save succeeds')
+  const after = await host.call('get', {})
+  eq(findWarning(after.value, 'invalid-holidays'), undefined, 'warning cleared by a clean save')
+})
+
 for (const [name, fn] of pending) {
   try {
     await fn()

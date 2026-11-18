@@ -4,11 +4,13 @@
 
 DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKILL.md](./SKILL.md)。
 
-当前版本：**v0.16.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+当前版本：**v0.16.1**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在设置页标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认当前加载的是哪一版。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
 
 宿主兼容：已在 `@deepseek-ai/dsh` **0.2.0-rc.2**、**0.2.1-rc.2** 与 **0.2.2-rc.1**（桌面端 0.14.0 内置核心，v0.16.0 起显式声明）上逐条核过接缝并实测加载；`peerDependencies` 逐条声明这三条线，**新的 rc 线不会被 `^0.2.x` 自动带入**，需要显式加一项——`scripts/host-compat.test.mjs` 会因此变红。
 
 0.16.0 在 **0.2.2-rc.1 headless 真核**上验证了新接缝（`agent/inbox/inserted` 的 `select()`，见 `docs/VERIFICATION_routing_v2.md`）；无 GUI 复核方式见 `docs/HEADLESS_VERIFY.md`。`internal/get` 的默认模型层在 0.2.2-rc.1 未被读取，已降级——新会话首条消息不再预览路由目标。
+
+0.16.1 起，**普通 subagent 与 AgentTeams 成员的消息也参与路由**：用户意图 source 为 `user` / `agent-teams`；`system-prompt`、`runtime-context`、`model-selection`、`subagent-settled`、`plugin` 等注入类明确排除。详见下文「子智能体 / AgentTeams 成员也受路由」。
 
 设置页的 **刷新模型列表** 会重新拉取 Provider 和模型，不重载配置、不保存策略，也不清空尚未保存的选择；刷新时禁用重复点击，失败显示错误并保留旧目录。刷新读取宿主当前提供的模型列表，不承诺清除第三方适配器内部缓存。
 
@@ -20,6 +22,8 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
 - **峰谷窗口与节假日可编辑**：设置页直接增删峰时窗口和节假日（按年分组、内置 2025/2026/2027 整年预设）；窗口必须 start < end 且不跨午夜，非法输入就地报错。
 - **目标不可路由时可见告警**：不可用目标会回退并显示红/黄告警（`get.warnings`），`recentWarnings` 保留 cleared 历史；不再只在 `debug.log` 里静默回退。
 - **跨窗口/多进程状态同步**：`state.json` v2（revision + 每键时间戳 + tombstones + applied/restore）用锁 + 原子写 + 逐键较新合并；设置页可见时 3 秒轮询，多窗口不一致时给「重新加载/用我的覆盖」冲突条；`set` 带 `expectedRevision` 乐观并发。
+- **子智能体 / AgentTeams 成员也受路由**：消息 source 为 `user` 或 `agent-teams` 时按用户意图分级/路由；`system-prompt`、`runtime-context`、`model-selection`、`subagent-settled`、`plugin` 等注入类排除；未知 source 跳过并记 `source-kind:<kind>` 限流日志。分级前会剥离 `AgentTeams message from …:` / `Agent <id> sent a message:` 投递前缀。
+- **首启引导**：第一次打开设置页会显示一条可关闭、不阻塞保存的引导条（默认关闭、三档含义、每档峰谷表/节假日在哪），保存一次后不再出现；是否首次由 `get.firstRun` 判定（启动时无 `policy.json`=true，本进程保存成功后=false，v1 迁移文件存在=false）。
 - **Provider / 模型一律下拉选择**：候选来自运行时**已注册的全部 provider**——API 与你装的订阅套餐并列（如 DeepSeek、ChatGPT Plus / Codex、Claude、Grok、Copilot、Antigravity），模型经该 provider 的 `listModels` 接口读取。避峰岗自身**不会**出现在候选里：它是 provider 之上的一层选择器逻辑，不是 provider。
 - **左侧「启用避峰岗」开关**：默认关闭 = 纯透传，行为与未装插件一致。开启后由避峰岗决定实际调用的模型，**连会话里已经选过的模型也会被改写**（会话自带的模型选择器本身不改动，只做功能接管 + 尽力而为的置灰提示）。启用状态有独立于策略配置的全局默认与每会话覆盖；要让某个已有会话生效，检查该会话实际使用的开关状态，而不只看全局开关。
 - **每会话独立状态 + 会话列表小灯 + 全局解耦**：
@@ -29,7 +33,7 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
   - **会话列表小灯**：每行一个微微发蓝光的小灯，亮 = 该会话此刻生效；已解耦的会多一圈淡环。全局默认开着时每行都会亮（它们跟随默认），只有被单独关掉的会话不亮。
   - **全局侧可见**：侧边栏开关的提示里会显示「· N 个已解耦」。
   - **已知限制**：行首位置由宿主条件渲染，下列四种行**不渲染**该插槽，小灯在这些时刻不显示——归档（archived）、空白（blank）、**正在运行**（显示状态点）、**有未读标记**。依据：`.recon/workspace.client.js` 里 `!row.archived && !row.blank && (showStatus ? … : unread ? … : renderSlot("sidebar.session.row.leading", …))`。这是宿主行为，插件不去改它。
-  - 另需注意：小灯反映的是**开关意图**，不是"此刻一定生效"。若策略目标不在 provider 目录里（模型下线/改名），路由会**静默回落到会话原模型**，只在 `debug.log` 留一行——此时小灯仍是亮的。
+  - 另需注意：小灯反映的是**开关意图**，不是"此刻一定生效"。若策略目标不在 provider 目录里（模型下线/改名），插件会保持会话原模型并写入 `warnings`（设置页红/黄横幅），`debug.log` 同时留一行 `warning: …`；目录恢复后自动清除。
 - **多端可用**：开关同时挂在左侧边栏底部与 composer 输入区左侧。窄屏（<1024px 侧边栏自动收起、Windows/macOS 收起态整列宽度为 0）时由 composer 入口兜底，两个入口共享同一份状态。
 
 ## 目录
@@ -49,6 +53,7 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
 - `scripts/catalog-warning.test.mjs` — 目标不可路由告警与自动恢复
 - `scripts/state-sync.test.mjs` / `restore.test.mjs` — 跨进程状态合并与「恢复原模型」
 - `scripts/inbox-routing.test.mjs` / `request-passthrough.test.mjs` — 新接缝与 `agent/request` 只读
+- `scripts/agent-teams-source.test.mjs` / `first-run.test.mjs` — 子智能体/AgentTeams source 路由、首启 `firstRun`
 - `scripts/t10-*.mjs` — 独立验证脚本（分类器校准、接缝、状态 I/O、跨窗口、0.15 差分）
 - `scripts/copy.test.mjs` — 界面文案单一来源与本地化映射检查
 - `scripts/session-state.test.mjs` — 每会话状态语义（覆盖 / 跟随默认 / 清除 / 容量上限 / 会话 id 读取）
@@ -56,7 +61,7 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
 - `scripts/session-fuzz.mjs` — 随机化差分属性测试：200 次随机操作 × 12 个探针 id（含 `__proto__`、`constructor`、超长与 Unicode id），**期望值独立地从 `state.json` 重算**，用来抓跨会话串扰与身份透传违规（`npm run fuzz`，可传种子）
 - `docs/HEADLESS_VERIFY.md` — 无 GUI 的 headless 验证通道（0.2.2-rc.1）
 - `docs/VERIFICATION_routing_v2.md` — 0.16 独立验证报告
-- `docs/RELEASE_0.16.0_CHECKLIST.md` — 重启后逐条验收清单
+- `docs/RELEASE_0.16.0_CHECKLIST.md` / `docs/RELEASE_0.16.1_CHECKLIST.md` — 各版本重启后逐条验收清单
 - `CHANGELOG.md` — 变更记录与版本策略
 - `cordis.patch.yml` — 自激活 patch（bundle 安装用）
 - `package.json` — 插件清单（含 `dsh.client` 声明）
@@ -65,7 +70,7 @@ DeepSeek Harness 的跨 provider 峰谷路由插件 + 公开 SKILL。详见 [SKI
 
 ```bash
 node src/build-client.mjs   # 重建 lib/client.js（改了 src/client 或 lib/text.js 后必跑）
-npm test                    # 16 套 node 测试
+npm test                    # 18 套 node 测试
 npm run verify              # 仓库自检 + 全套测试（只读，不写任何产物）
 npm run fuzz                # 只跑随机化差分属性测试（可传随机种子）
 ```
@@ -118,6 +123,10 @@ npm run fuzz                # 只跑随机化差分属性测试（可传随机�
   `model catalog refreshed (adapters-updated)` 后第二条重试。
 - **`internal/get` 默认模型层在 0.2.2-rc.1 未被读取，已降级**：新会话首条消息不再预览路由目标；以 `debug.log` 的 `inbox: decision` 为准。
 - **分类器为启发式，相邻档允许错分**（冻结集 6 条、留出集 3 条）；**跨档反档必须为 0**，这是 0.16.0 的验收口径。智能程度路由**默认关闭**，需手动开启。
+- **节日日期合法性 1970–2100**：非法日期（如 2026-02-30）不再报错，而是被丢弃并给 info `invalid-holidays` 告警（保存合法列表后清除）。注意这是行为变更：**2000 年以前的合法日期现在会通过**。
+- **UTC 偏移会被钳制**：`utcOffsetMinutes` 非数字/缺失回默认 480，其余四舍五入后夹在 `[-720, 840]`。
+- **`plugin` source 不路由**：它被视为「已知非意图」（released-format 宿主上的 AgentTeams 包装消息）；当前桌面端的 `agent-teams` source 正常。
+- **`firstRun` 的外部创建边界**：进程启动后才由外部进程创建 `policy.json` 时，`firstRun` 在本进程成功保存一次之前仍为 `true`（不影响引导关闭后的行为）。
 - **配额/限流不归避峰岗管**：它只决定"用哪个 provider/model"。若目标 provider 的账号池处于 429 冷却（如订阅套餐的 5 小时窗口用尽），请求会在 provider 层失败。避峰岗不会自动改道到别的模型——那会让"为什么换模型"变得不可预测；需要时请改配置或暂时关掉开关。
 - **目标不可路由时现在会告警**：目录里没有该 model / provider 未注册 / effort 不可用 → 保持会话原模型并写入 `warnings`（设置页红/黄横幅），目录恢复后自动清除；`debug.log` 同时留一行 `warning: …`。
 - **行首小灯的显示条件**：见上文「每会话独立状态」一节的四条隐藏条件（宿主行为）。

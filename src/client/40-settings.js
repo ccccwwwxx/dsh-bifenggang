@@ -392,6 +392,7 @@ function pvWarningKindText(kind, t) {
     case 'state-write-failed': return t('warnKindStateWriteFailed')
     case 'default-seam-missing': return t('warnKindDefaultSeamMissing')
     case 'legacy-extra-strategies': return t('warnKindLegacyExtra')
+    case 'invalid-holidays': return t('warnKindInvalidHolidays')
     default: return t('warnKindOther')
   }
 }
@@ -406,6 +407,8 @@ function pvWarningText(warning, t) {
   if (kind === 'host-unsupported') return t('warningHostUnsupported')
   // v1 迁移：strategies[1..] 不再参与路由（只读 legacy 快照），必须让用户看见。
   if (kind === 'legacy-extra-strategies') return t('warningLegacyExtra', { count: pvNum(warning.extraCount, 0) })
+  // 服务端过滤掉非法节假日（t18）：走既有横幅，不新增专用 UI。
+  if (kind === 'invalid-holidays') return t('warningInvalidHolidays')
   if (kind === 'select-failed' || kind === 'no-current' || kind === 'request-failed'
     || kind === 'provider' || kind === 'model' || kind === 'effort' || kind === 'missing') {
     return t('warningUnroutable', { target, kind: pvWarningKindText(kind, t), kept: kept === '-' ? '-' : kept })
@@ -469,6 +472,23 @@ function pvFeatureText(feature, t) {
 
 function pvTierLabel(tier, t) {
   return t(PV_TIER_LABEL_KEY[tier] || 'tierLow')
+}
+
+// 首次使用判定：node 端下发 get.firstRun 时以它为准；尚未下发时按 revision 兜底
+// 推断——新装/从未保存过 policy.json 时 revision 仍是 DEFAULTS 的 1，首次保存后
+// node 端会 +1。兜底只是过渡（t18/core 落地 firstRun 后自动优先用字段），
+// 未知形状一律 false（不误导已有用户）。
+function pvFirstRunState(res) {
+  if (!res || typeof res !== 'object') return false
+  if (typeof res.firstRun === 'boolean') return res.firstRun
+  // v1 policy.json 被内存迁移后一定带 legacy 快照（lib/routing.js#migrateV1），
+  // 说明是老用户升级上来而不是新装：不要用 revision=1 误判成首次使用。
+  if (res.config && typeof res.config === 'object' && res.config.legacy && typeof res.config.legacy === 'object') return false
+  const revision = typeof res.configRevision === 'number'
+    ? res.configRevision
+    : (res.config && typeof res.config.revision === 'number' ? res.config.revision : undefined)
+  if (typeof revision !== 'number') return false
+  return revision <= 1
 }
 
 // 节假日编辑器（无内部状态：日期输入与年份选择由父级持有）。
@@ -559,6 +579,10 @@ function PolicySettingsSection({ rpc, t }) {
   const [host, setHost] = useState(null)
   const [warnings, setWarnings] = useState([])
   const [recentWarnings, setRecentWarnings] = useState([])
+  // 首次使用引导：firstRun 来自 get（true = 用户还没保存过 policy.json）；
+  // guideDismissed 只存会话内存（不落盘），保存成功后引导也必须消失。
+  const [firstRun, setFirstRun] = useState(null)
+  const [guideDismissed, setGuideDismissed] = useState(false)
   const [recentDecisions, setRecentDecisions] = useState([])
   const [sessionDetails, setSessionDetails] = useState({})
   const [restoring, setRestoring] = useState('')
@@ -657,6 +681,7 @@ function PolicySettingsSection({ rpc, t }) {
     setRecentDecisions(res && Array.isArray(res.recentDecisions) ? res.recentDecisions : [])
     setSessionDetails(res && res.sessionDetails && typeof res.sessionDetails === 'object' ? res.sessionDetails : {})
     setBaseRevision(res && typeof res.configRevision === 'number' ? res.configRevision : undefined)
+    setFirstRun(pvFirstRunState(res))
     const raw = res && res.config !== undefined ? res.config : res
     const draft = pvDraftFrom(raw)
     setConfig(draft)
@@ -720,6 +745,8 @@ function PolicySettingsSection({ rpc, t }) {
       setWarnings(Array.isArray(res.warnings) ? res.warnings : [])
       setRecentWarnings(Array.isArray(res.recentWarnings) ? res.recentWarnings : [])
       setSessionDetails(res.sessionDetails && typeof res.sessionDetails === 'object' ? res.sessionDetails : {})
+      // 另一窗口保存后（revision 变化/firstRun=false）引导也应消失。
+      setFirstRun(pvFirstRunState(res))
       // get 也带 enabled/sessions；本区块不展示它们（开关属于侧边栏 store），
       // 但会话覆盖变化仍通过 sessionDetails 的 enabled 字段在「恢复原模型」里体现。
 
@@ -952,6 +979,8 @@ function PolicySettingsSection({ rpc, t }) {
         setBaseRevision(next.configRevision)
         seenRevisionRef.current = next.configRevision
       }
+      // 保存即视为「已用过」：引导永久消失（即使服务端这一版还没下发 firstRun）。
+      setFirstRun(false)
       setConflict(null)
       // 明确的成功反馈：保存成功后界面必须有变化，用户才能区分「存上了」和「点了没反应」。
       const time = new Date().toLocaleTimeString()
@@ -1036,6 +1065,34 @@ function PolicySettingsSection({ rpc, t }) {
           ? h('span', { style: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-state-warn-label, #8a6100)' } }, t('hostBadgeOld'))
           : null,
     ),
+
+    // ---- 首次使用引导（可关闭、不阻塞保存；保存后永久消失） ----
+    firstRun === true && guideDismissed !== true
+      ? h('div', {
+        role: 'note',
+        'data-first-run': 'true',
+        style: {
+          border: '1px solid var(--dsw-alias-state-business-primary, #4c8dff)',
+          background: 'var(--dsw-alias-bg-layer-1, #f2f7ff)',
+          borderRadius: 10,
+          padding: 12,
+          marginBottom: 12,
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+        },
+      },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+          h('span', { style: { fontSize: 13, lineHeight: '20px', fontWeight: 600, color: 'var(--dsw-alias-label-primary, #111)' } }, t('firstRunTitle')),
+          h('button', {
+            onClick: () => setGuideDismissed(true),
+            style: { marginLeft: 'auto', padding: '2px 8px' },
+          }, t('firstRunDismiss')),
+        ),
+        h('ul', { style: { margin: '6px 0 0', paddingLeft: 18, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary, #555)' } },
+          ['firstRunPoint1', 'firstRunPoint2', 'firstRunPoint3', 'firstRunPoint4'].map((key) => h('li', { key }, t(key))),
+        ),
+      )
+      : null,
 
     // ---- 状态区：此刻生效 ----
     active && typeof active === 'object'

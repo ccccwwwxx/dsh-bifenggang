@@ -7,6 +7,9 @@
 import { DEFAULTS } from '../lib/text.js'
 import {
   normalizeConfig,
+  normalizeConfigDetailed,
+  isValidHoliday,
+  clampUtcOffset,
   resolveTargets,
   decide,
   ConfigError,
@@ -156,12 +159,40 @@ check('threshold order and range are enforced', () => {
 
 check('weekdays, holidays and targets are validated with field paths', () => {
   throws(() => withCfg((c) => { c.targets.low.peak.weekdays = [0, 8]; return c }), 'weekday', 'weekday range')
-  throws(() => withCfg((c) => { c.holidays = [[1999, 1, 1]]; return c }), 'holiday', 'holiday year')
-  throws(() => withCfg((c) => { c.holidays = [[2026, 13, 1]]; return c }), 'holiday', 'holiday month')
+  // An invalid holiday DATE is dropped (never fatal — one typo must not reset the
+  // policy), but a non-list holidays value is still a type error.
+  eq(withCfg((c) => { c.holidays = [[2026, 13, 1], [2026, 2, 30]]; return c }).holidays, [], 'invalid holiday dates are dropped')
+  throws(() => withCfg((c) => { c.holidays = {}; return c }), 'type', 'holidays must be a list')
   throws(() => withCfg((c) => { c.targets.low.valley = { provider: 'p' }; return c }), 'missing-model', 'missing valley model')
   throws(() => withCfg((c) => { c.targets.low = { share: 'low' }; return c }), 'share', 'low cannot share')
   throws(() => withCfg((c) => { c.targets.mid = { share: 'high' }; return c }), 'share', 'only share low is supported')
   throws(() => withCfg((c) => { c.tierRouting = [] ; return c }), 'type', 'tierRouting object')
+})
+
+check('holiday dates must be real calendar days (leap years included)', () => {
+  eq(isValidHoliday(2026, 10, 1), true, 'ordinary date')
+  eq(isValidHoliday(2028, 2, 29), true, 'leap day 2028')
+  eq(isValidHoliday(2027, 2, 29), false, '2027 is not a leap year')
+  eq(isValidHoliday(2026, 2, 30), false, 'February 30 does not exist')
+  eq(isValidHoliday(2026, 4, 31), false, 'April 31 does not exist')
+  eq(isValidHoliday(2026, 13, 1), false, 'month 13')
+  eq(isValidHoliday(2026, 0, 1), false, 'month 0')
+  eq(isValidHoliday(2026, 1, 0), false, 'day 0')
+  eq(isValidHoliday(1970, 1, 1), true, 'lower bound')
+  eq(isValidHoliday(2100, 12, 31), true, 'upper bound')
+  eq(isValidHoliday(1969, 12, 31), false, 'below 1970')
+  eq(isValidHoliday(2101, 1, 1), false, 'above 2100')
+  eq(isValidHoliday('2026', '10', '1'), true, 'numeric strings')
+  eq(isValidHoliday(2026.5, 10, 1), false, 'fractional year')
+  eq(isValidHoliday(2026, 10), false, 'missing day')
+
+  const detailed = normalizeConfigDetailed({
+    ...base(),
+    holidays: [[2026, 10, 1], [2026, 2, 30], [1969, 12, 31], [2027, 2, 29], [2028, 2, 29], 'nope', [2026, 13, 1]],
+  })
+  eq(detailed.config.holidays, [[1999, 1, 1], [2026, 10, 1], [2028, 2, 29]].slice(1), 'only real dates survive')
+  eq(detailed.droppedHolidays, 5, 'dropped count')
+  eq(normalizeConfig({ ...base(), holidays: [[2026, 10, 1]] }).holidays, [[2026, 10, 1]], 'no drop when clean')
 })
 
 check('holidays are de-duplicated and sorted; a shared tier drops stray fields', () => {
@@ -178,9 +209,22 @@ check('holidays are de-duplicated and sorted; a shared tier drops stray fields',
   eq(cfg.targets.mid, { share: 'low' }, 'shared tier keeps only share')
 })
 
-check('utcOffsetMinutes is validated and defaults to +08:00', () => {
+check('utcOffsetMinutes is clamped to the real-world range and defaults to +08:00', () => {
   eq(normalizeConfig({ targets: base().targets, advancedSupport: base().advancedSupport }).utcOffsetMinutes, 480, 'default offset')
-  throws(() => withCfg((c) => { c.utcOffsetMinutes = 900; return c }), 'timezone', 'offset range')
+  eq(clampUtcOffset(480), 480, 'in range')
+  eq(clampUtcOffset(-720), -720, 'lower boundary')
+  eq(clampUtcOffset(840), 840, 'upper boundary')
+  eq(clampUtcOffset(900), 840, 'over the top clamps')
+  eq(clampUtcOffset(-900), -720, 'below the bottom clamps')
+  eq(clampUtcOffset(-800), -720, 'clamps upward into range')
+  eq(clampUtcOffset(480.6), 481, 'rounds')
+  eq(clampUtcOffset(-0.4), 0, 'rounds to zero')
+  eq(clampUtcOffset('abc'), 480, 'non-numeric falls back')
+  eq(clampUtcOffset(NaN), 480, 'NaN falls back')
+  eq(clampUtcOffset(Infinity), 480, 'Infinity falls back')
+  eq(clampUtcOffset(undefined), 480, 'undefined falls back')
+  eq(withCfg((c) => { c.utcOffsetMinutes = 900; return c }).utcOffsetMinutes, 840, 'config clamps instead of throwing')
+  eq(withCfg((c) => { c.utcOffsetMinutes = 'nonsense'; return c }).utcOffsetMinutes, 480, 'config falls back')
 })
 
 // ---------- effective tables ----------

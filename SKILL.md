@@ -5,7 +5,7 @@ description: "避峰岗：谷时让 DeepSeek 扛大梁，峰时换 ChatGPT Plus 
 
 # 避峰岗（Peak Avoidance Post）
 
-> 当前版本 **v0.16.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在「设置 → 避峰岗」标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+> 当前版本 **v0.16.1**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在「设置 → 避峰岗」标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
 >
 > 宿主兼容：已在 `@deepseek-ai/dsh` **0.2.0-rc.2**、**0.2.1-rc.2** 与 **0.2.2-rc.1**（桌面端 0.14.0 内置核心）上实测；`peerDependencies` 逐条声明这三条线，新 rc 线要显式加进去（见 `scripts/host-compat.test.mjs`）。无 GUI 复核见 `docs/HEADLESS_VERIFY.md`。
 
@@ -30,6 +30,8 @@ DeepSeek 官方峰谷定价（2026-08-17 起）：
 5. **可见告警与跨窗口同步**：目标不可路由时回退并显示红/黄告警（含 cleared 历史）；`state.json` v2 + 3 秒轮询让多窗口/多进程保持一致。
 6. **高级思考模型**：与时间无关的独立一档，只在会话要求 `max` 思考时启用；旧名 `exclusive` 仍兼容，但它不是"未命中就兜底"。
 7. **GUI 配置**：设置页里直接编辑三档、窗口、节假日，不用手改 JSON。
+8. **子智能体 / AgentTeams 成员路由（0.16.1）**：用户意图 source 为 `user` / `agent-teams`；`system-prompt`、`runtime-context`、`model-selection`、`subagent-settled`、`plugin` 等注入类明确排除；未知 source 跳过并记 `source-kind:<kind>` 限流日志。分级前剥离 `AgentTeams message from …:` / `Agent <id> sent a message:` 投递前缀。
+9. **首启引导**：第一次打开设置页显示可关闭的引导条（默认关闭、三档含义、峰谷表/节假日在哪），保存一次后消失；是否首次由 `get.firstRun` 判定（启动时无 `policy.json`=true，本进程保存成功后=false，v1 迁移文件存在=false）。
 
 默认换班表（0.16.0 起；智能程度路由默认关闭 → 实际恒用低档）：
 
@@ -107,6 +109,9 @@ config:
 3. 冷启动首条消息可能因目录/effort 未热而 info unverified 不路由，第二条重试。
 4. `internal/get` 默认模型层在 0.2.2-rc.1 未被读取，已降级（新会话首条消息不再预览路由目标）。
 5. 分类器为启发式，相邻档允许错分（冻结集 6 条、留出集 3 条），**跨档反档必须为 0**；智能程度路由默认关闭，需手动开启。
+6. 节日合法范围 **1970–2100**（行为变更：2000 年以前的合法日期现在会通过）；非法日期被丢弃并给 info `invalid-holidays` 告警，保存合法列表后清除。UTC 偏移四舍五入后夹在 `[-720, 840]`。
+7. `plugin` source 视为已知非意图，旧宿主上的 AgentTeams 包装消息不触发路由；当前桌面端的 `agent-teams` 正常。
+8. 外部进程在启动后创建 `policy.json` 时，`firstRun` 在本进程保存一次前仍为 true（不影响引导关闭后的行为）。
 
 ## 依赖注意
 

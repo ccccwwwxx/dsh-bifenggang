@@ -16,6 +16,47 @@
 
 **1.0 的条件**：路由语义与配置格式冻结，并经过若干个版本的实际使用。在那之前的破坏性变更会写在下面。
 
+## [0.16.1] - 2026-11-19
+
+**子智能体路由修复 + 节日校验/UTC 钳制 + 首启引导 + `get.firstRun`**。
+
+### 修复
+
+- **子智能体路由（本次最实质的行为修复）**：普通 subagent 的消息一直按 `user` source 参与路由；
+  AgentTeams 成员投递的消息此前用 `agent-teams` source，被 inbox 的「仅 user」筛选跳过，表现为成员会话
+  完全不走避峰岗。0.16.1 把 `agent-teams` 纳入用户意图，**成员会话现在也会产生
+  `inbox: decision → inbox: select → pre-step: … match=true` 并按策略路由**。
+  - 用户意图 source：`user`、`agent-teams`。
+  - 明确排除的注入类：`system-prompt`、`runtime-context`、`model-selection`、`subagent-settled`、`plugin`。
+  - 未知 source：跳过路由，并记一行 `source-kind:<kind>` 限流日志，便于以后扩展。
+  - 分级前剥离首行投递前缀 `AgentTeams message from …:` / `Agent <id> sent a message:`（只做分类预处理，
+    阈值/权重未动）。
+
+### 节日校验 / 时区钳制
+
+- **节日日期合法性校验**：合法范围 **1970–2100**（`Date.UTC` 回读校验真实日历日）。这是**行为变更**：
+  2000 年以前的合法日期现在会通过（旧实现下限为 2000）。
+- 非法日期（如 2026-02-30、2027-02-29）不再让整份配置报错，而是逐条丢弃并计数；`get.warnings` 出现
+  info 级 `invalid-holidays`（`extraCount=N`、同 key 限流），保存合法列表后自动清除。配置其余部分照常可用。
+- **UTC 偏移钳制**：`utcOffsetMinutes` 非数字/缺失回默认 480；其余四舍五入后夹到 **[-720, 840]**。
+
+### 首启引导
+
+- **设置页首启引导（first-run guide）**：非弹窗、可关闭、不阻塞保存的引导条，说明「默认关闭需手动开启 /
+  三档含义与默认共用低档 / 每档峰谷表与节假日在哪」；保存一次后不再出现。
+- **`get.firstRun`（新字段，布尔）**：启动时 `policy.json` 不存在 → `true`；存在（v1 或 v2，含迁移文件）
+  → `false`；本进程 `set` 成功后置 `false`（校验失败/写盘失败保持 `true`）。设置页优先读该字段，缺失时
+  回退 `configRevision <= 1` 推断并用 `legacy` 排除 v1 老用户。
+
+### 兼容 / 已知边界
+
+- `schemaVersion` 仍为 2；v1 `strategies` 自动迁移逻辑未变；`peerDependencies` 未变。
+- `plugin` source 仍视为「已知非意图」：released-format 宿主上的 AgentTeams 包装消息不会触发路由；
+  本次只承诺当前桌面端的 `agent-teams` source。
+- **外部进程创建 policy.json 的边界**：进程启动后才由外部进程创建 policy.json 时，`firstRun` 在本进程
+  成功保存一次之前仍为 `true`（不影响引导关闭后的行为）。
+- 节日校验只校验日期是否为真实日历日，不校验「是否落在已配置的峰时星期」。
+
 ## [0.16.0] - 2026-11-19
 
 **智能程度路由（默认关闭）+ 三档峰谷表 + 可见告警 + 跨窗口状态同步**。

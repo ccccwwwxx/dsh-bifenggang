@@ -121,6 +121,23 @@ check('peakRoutingSessions keeps only boolean values from the wire', () => {
   eqj(peakRoutingSessions(undefined), {}, 'tolerates undefined')
 })
 
+// First-run detection decides whether the settings page shows the onboarding guide.
+// It must prefer the node-provided get.firstRun, and only fall back to the revision
+// heuristic when that field is absent; unknown shapes must never show the guide.
+check('pvFirstRunState prefers get.firstRun and degrades without it', () => {
+  const src = readFileSync(join(clientDir, '40-settings.js'), 'utf8')
+  const pvFirstRunState = new Function(`${liftFunction(src, 'pvFirstRunState')}\nreturn pvFirstRunState`)()
+  eq(pvFirstRunState({ firstRun: true }), true, 'explicit firstRun=true wins')
+  eq(pvFirstRunState({ firstRun: false, configRevision: 1 }), false, 'explicit firstRun=false wins')
+  eq(pvFirstRunState({ configRevision: 1 }), true, 'fresh install (revision 1) is inferred')
+  eq(pvFirstRunState({ configRevision: 5 }), false, 'saved config (revision > 1) is not first run')
+  eq(pvFirstRunState({ config: { revision: 1 } }), true, 'config.revision fallback')
+  eq(pvFirstRunState({ configRevision: 1, config: { revision: 1, legacy: { strategies: [] } } }), false, 'migrated v1 policy is not a first run')
+  eq(pvFirstRunState({ configRevision: 'nope' }), false, 'non-numeric revision degrades to false')
+  eq(pvFirstRunState({}), false, 'unknown shape never shows the guide')
+  eq(pvFirstRunState(null), false, 'null payload is safe')
+})
+
 // The user requirement is that ALL interface text is maintained in one file. This
 // catches the failure mode the reviewer found (a Chinese weekday array hardcoded
 // in the client): once block comments are removed and each line is cut at its
