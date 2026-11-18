@@ -16,6 +16,16 @@
 
 **1.0 的条件**：路由语义与配置格式冻结，并经过若干个版本的实际使用。在那之前的破坏性变更会写在下面。
 
+## [0.15.0] - 2026-11-18
+
+**默认值切换为 DeepSeek Flash fail-safe**：默认配置不再把会话押在 ChatGPT（`codex`）订阅额度上。
+
+- `lib/text.js` 的 `DEFAULTS`：策略改为**全周**（`weekdays: [1..7]`）`deepseek-official/deepseek-flash` @ `low`；`peak.enabled: false`（峰时窗口保留但不参与路由）；`advancedSupport` 改为 `deepseek-official/deepseek-flash` @ `max`。
+- 动机：GPT 订阅额度枯竭时（`usage_limit_reached` / HTTP 429），旧默认把工作日峰时段和 `max` 思考请求路由到 `codex`，表现成「一装避峰岗就报错」。新默认在订阅额度不可用时仍在官方 DeepSeek Flash 上工作；「峰时切订阅模型」仍是受支持能力，只是需要显式开启并显式配置副模型。
+- 路由逻辑未改（`lib/index.js` 不动）：`resolveSelectionDetailed` 仅在 `peak.enabled` 为真且峰时窗口命中时才走峰时分支；默认配置下工作日峰时与周末都解析为策略主模型（`reason=primary`），峰时分支不触发。
+- 测试：`scripts/session-state.test.mjs` 补 `advancedSupport` 的 `reasoningEffort` 断言（实际下发必须与默认一致）、断言默认目标必须全部留在官方 DeepSeek Flash，并新增「默认配置在工作日峰时窗口与周末均不触发峰时分支」的回归。
+- 文档：README / SKILL 的「当前版本」与 SKILL 的默认换班表、配置示例同步为新默认。
+
 ## [0.14.1] - 2026-10-28
 
 - 保存成功后显示明确的成功 Toast，并仅在 `set` RPC 正常返回后显示；失败时显示错误提示，不会误报成功。

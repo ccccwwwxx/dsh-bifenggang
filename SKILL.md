@@ -5,7 +5,7 @@ description: "避峰岗：谷时让 DeepSeek 扛大梁，峰时换 ChatGPT Plus 
 
 # 避峰岗（Peak Avoidance Post）
 
-> 当前版本 **v0.14.1**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在「设置 → 避峰岗」标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
+> 当前版本 **v0.15.0**（pre-1.0）。版本号唯一来源是 `package.json`；运行时可在「设置 → 避峰岗」标题下方或 `debug.log` 的 `apply: vX.Y.Z, …` 行确认。变更记录与版本策略见 [CHANGELOG.md](./CHANGELOG.md)。
 >
 > 宿主兼容：已在 `@deepseek-ai/dsh` **0.2.0-rc.2**（桌面端 0.12.0）与 **0.2.1-rc.2**（npm `next`）上实测；`peerDependencies` 逐条声明这两条线，新 rc 线要显式加进去（见 `scripts/host-compat.test.mjs`）。
 
@@ -29,12 +29,13 @@ DeepSeek 官方峰谷定价（2026-08-17 起）：
 4. **高级思考模型**：与时间无关的独立一档，只在会话要求 `max` 思考时启用；**设了策略就必须配它**（旧名 `exclusive`），但它不再充当"未命中就兜底"的角色——未命中用第一条策略的主模型。
 5. **GUI 配置**：设置页里直接增删改策略，不用手改 JSON。
 
-默认换班表示例：
+默认换班表（0.15.0 起为订阅额度枯竭时的 fail-safe）：
 
 | 时段 | 用谁 | 说明 |
 |---|---|---|
-| 谷时（工作日夜间/周末/节假日） | `deepseek-official` / `deepseek-flash` | 便宜，半价 |
-| 峰时（工作日 9–12 / 14–18） | `codex` / `gpt-5.6-luna` @ max | 订阅已付，不额外掏钱 |
+| 默认（全周任意时刻） | `deepseek-official` / `deepseek-flash` @ low | 官方 Flash 低思考档，不依赖订阅额度 |
+| 会话显式要求 `max` 思考 | `deepseek-official` / `deepseek-flash` @ max | 独立的「高级思考」轴，与时间无关 |
+| 峰时窗口（默认关闭） | 需显式开启并配置副模型 | 开启后工作日 9–12 / 14–18 可切到订阅 provider（如 `codex`） |
 
 ## 安装与配置
 
@@ -48,21 +49,21 @@ config:
   holidays: [[2026, 10, 1], ...] # 中国法定节假日，全年谷时
   strategies:                    # 按顺序首条命中生效
     - name: "避峰岗"
-      description: "工作日白天避开 DeepSeek 高峰"
-      weekdays: [1, 2, 3, 4, 5]
-      primary:                   # 主模型（谷时）
+      description: "GPT 额度枯竭时低级任务全周使用 DeepSeek Flash low"
+      weekdays: [1, 2, 3, 4, 5, 6, 7]
+      primary:                   # 低级任务默认
         provider: deepseek-official
         model: deepseek-flash
-        reasoningEffort: high
-      peak:                      # 峰谷选项
-        enabled: true
+        reasoningEffort: low
+      peak:                      # 峰时副模型已禁用
+        enabled: false
         windows: [["09:00", "12:00"], ["14:00", "18:00"]]
-        provider: codex          # 副模型（峰时）
-        model: gpt-5.6-luna
-        reasoningEffort: max
-  advancedSupport:               # 高级思考模型（另一根轴，不是兜底）
-    provider: codex
-    model: gpt-6-astra
+        provider: deepseek-official
+        model: deepseek-flash
+        reasoningEffort: low
+  advancedSupport:               # 显式 max 时的高级目标（另一根轴，不是兜底）
+    provider: deepseek-official
+    model: deepseek-flash
     reasoningEffort: max
 ```
 

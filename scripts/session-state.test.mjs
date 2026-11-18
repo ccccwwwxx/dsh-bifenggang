@@ -224,16 +224,65 @@ check('the advanced thinking model is used ONLY when the request asks for max re
   const advanced = await host.route('sessionA', { ...SEED, reasoningEffort: 'max' })
   if (advanced === SEED) throw new Error('a max-effort request must be routed')
   eq(
-    { provider: advanced.provider, model: advanced.model },
-    { provider: DEFAULTS.advancedSupport.provider, model: DEFAULTS.advancedSupport.model },
+    {
+      provider: advanced.provider,
+      model: advanced.model,
+      reasoningEffort: advanced.reasoningEffort,
+    },
+    {
+      provider: DEFAULTS.advancedSupport.provider,
+      model: DEFAULTS.advancedSupport.model,
+      reasoningEffort: DEFAULTS.advancedSupport.reasoningEffort,
+    },
     'max effort target',
   )
 
   for (const effort of ['low', 'medium', 'high', 'xhigh']) {
     const out = await host.route('sessionB', { ...SEED, reasoningEffort: effort })
-    if (out.provider === DEFAULTS.advancedSupport.provider && out.model === DEFAULTS.advancedSupport.model) {
+    if (
+      out.provider === DEFAULTS.advancedSupport.provider
+      && out.model === DEFAULTS.advancedSupport.model
+      && out.reasoningEffort === DEFAULTS.advancedSupport.reasoningEffort
+    ) {
       throw new Error(`an effort=${effort} request must not be escalated to the advanced thinking model`)
     }
+  }
+
+  const defaultTargets = [
+    ...DEFAULTS.strategies.flatMap((strategy) => [
+      strategy.primary,
+      ...(strategy.peak?.enabled ? [strategy.peak] : []),
+    ]),
+    DEFAULTS.advancedSupport,
+  ]
+  if (defaultTargets.some((target) => target.provider !== 'deepseek-official' || target.model !== 'deepseek-flash')) {
+    throw new Error('quota-exhausted defaults must stay on the official DeepSeek Flash route')
+  }
+})
+
+check('the default policy keeps peak disabled, so a peak-window instant stays on the primary', () => {
+  // The 0.15.0 defaults are a fail-safe: they must never route to a subscription
+  // provider they cannot reach. `resolveSelectionDetailed` only takes the peak
+  // branch when `peak.enabled` is true AND the instant falls inside a window, so
+  // with the shipped defaults a weekday 10:00 / 15:00 instant must resolve to the
+  // strategy primary (`reason=primary`), not to `reason=peak`. The peak branch
+  // itself is covered against an explicitly enabled config in
+  // scripts/roundtrip.test.mjs; this check pins the shipped defaults specifically.
+  const cfg = mod.normalizeConfig(DEFAULTS)
+  if (cfg.strategies.some((strategy) => strategy.peak.enabled)) {
+    throw new Error('DEFAULTS must not enable a peak window (fail-safe defaults)')
+  }
+  const at = (iso) => mod.resolveSelectionDetailed(new Date(iso), cfg)
+  for (const [iso, label] of [
+    ['2026-10-14T02:00:00Z', 'Wed 10:00 Beijing (09:00-12:00 window)'],
+    ['2026-10-14T07:00:00Z', 'Wed 15:00 Beijing (14:00-18:00 window)'],
+    ['2026-10-17T02:00:00Z', 'Sat 10:00 Beijing (outside weekday-only policies)'],
+  ]) {
+    const out = at(iso)
+    if (out.reason !== 'primary') {
+      throw new Error(`${label}: defaults must resolve to reason=primary, got reason=${out.reason}`)
+    }
+    eq(out.selection, DEFAULTS.strategies[0].primary, `${label} selection`)
   }
 })
 
