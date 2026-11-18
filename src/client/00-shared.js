@@ -5,19 +5,34 @@ const NS = 'settings.peakValley'
 const inject = ['slots', 'connection', 'locale']
 
 // 统一解包 { ok, value } 信封；失败时抛出服务端消息。
+// 结构化错误码（如 set 的 stale-revision）挂到 error.code / error.details 上，
+// 供 UI 区分「冲突」与普通失败——消息文本可能被本地化，code 不会。
 function rpc(connection) {
   const call = async (method, payload) => {
     const res = await connection.rpc.call('/api', method, payload)
     if (res && res.ok === true) return res.value
-    const msg = res?.error?.message ?? res?.error ?? 'RPC failed'
-    throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg))
+    const raw = res && res.error
+    const msg = raw?.message ?? raw ?? 'RPC failed'
+    const error = new Error(typeof msg === 'string' ? msg : JSON.stringify(msg))
+    if (raw && typeof raw === 'object') {
+      if (typeof raw.code === 'string') error.code = raw.code
+      if (raw.details !== undefined) error.details = raw.details
+    }
+    throw error
   }
   return {
     get: () => call('dsh-peak-valley-router.get', {}),
-    set: (config) => call('dsh-peak-valley-router.set', { config }),
-    providers: () => call('dsh-peak-valley-router.providers', {}),
-    models: (provider) => call('dsh-peak-valley-router.models', { provider }),
+    // expectedRevision 只在服务端下发过 configRevision 时才带；旧服务端忽略未知字段。
+    set: (config, expectedRevision) => call(
+      'dsh-peak-valley-router.set',
+      expectedRevision === undefined || expectedRevision === null ? { config } : { config, expectedRevision },
+    ),
+    providers: () => call('dsh-peak-valley-router.providers', { strict: true }),
+    models: (provider) => call('dsh-peak-valley-router.models', { provider, strict: true }),
     toggle: (payload) => call('dsh-peak-valley-router.toggle', typeof payload === 'boolean' ? { enabled: payload } : (payload || {})),
+    // 只读试算：不落盘、不 select（设计 §8）。0.16 引擎才有；缺失时 UI 降级。
+    probe: (payload) => call('dsh-peak-valley-router.probe', payload || {}),
+    restore: (sessionId) => call('dsh-peak-valley-router.restore', { sessionId }),
   }
 }
 
@@ -60,57 +75,6 @@ function useContainerWidth(threshold) {
     return () => observer.disconnect()
   }, [node, threshold])
   return [ref, narrow]
-}
-
-// ---- 节假日编辑（纯函数，设置页与测试共用） ----
-// The node layer stores holidays as [year, month, day]; the settings textarea
-// speaks YYYY-MM-DD. Parse strictly here so an invalid line cannot reach
-// normalizeConfig and silently become a wrong holiday.
-function pvHolidayToText(holiday) {
-  if (!Array.isArray(holiday) || holiday.length !== 3) return ''
-  const [y, m, d] = holiday
-  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return ''
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-}
-
-function pvFormatHolidays(holidays) {
-  return (Array.isArray(holidays) ? holidays : [])
-    .map(pvHolidayToText)
-    .filter(Boolean)
-    .join('\n')
-}
-
-function pvParseHolidayText(text) {
-  const tokens = String(text || '').split(/[\s,]+/).map((token) => token.trim()).filter(Boolean)
-  const holidays = []
-  const invalid = []
-  const seen = new Set()
-  for (const token of tokens) {
-    const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(token)
-    if (!match) {
-      invalid.push(token)
-      continue
-    }
-    const year = Number(match[1])
-    const month = Number(match[2])
-    const day = Number(match[3])
-    const date = new Date(Date.UTC(year, month - 1, day))
-    if (
-      year < 1970 || year > 2100 ||
-      date.getUTCFullYear() !== year ||
-      date.getUTCMonth() !== month - 1 ||
-      date.getUTCDate() !== day
-    ) {
-      invalid.push(token)
-      continue
-    }
-    const key = `${year}-${month}-${day}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    holidays.push([year, month, day])
-  }
-  holidays.sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2])
-  return { holidays, invalid }
 }
 
 // ---- 「启用避峰岗」开关的共享状态源 ----

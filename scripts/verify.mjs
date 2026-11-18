@@ -1,6 +1,6 @@
 // 仓库自检：文案 key 完整性、RPC 契约一致性、生成物新鲜度。
 // 用法：node scripts/verify.mjs   （在 dsh-bifenggang 目录下运行；退出码非 0 表示失败）
-import { readFileSync, readdirSync, rmSync } from 'node:fs'
+import { readFileSync, readdirSync, rmSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -51,14 +51,53 @@ else ok(`client 调用的 ${clientRpcs.size} 个 RPC 在 node 端均有 handler`
 if (missingOnClient.length) ok(`node 端额外方法（client 未用）: ${missingOnClient.join(', ')}`)
 
 // ---------- 3. 关键不变式 ----------
+// 0.16.0 的接缝换成了 `agent.model.select()`：`agent/request` 只读（0.2.2-rc.1 会在
+// 其后逐字段硬校验并 throw），因此旧的「agent/request prepend 改写」不变式被删除，
+// 换成更强的替代：**源码级证明 agent/request 处理器没有任何字段改写**（只读观察这
+// 条不变式不能降级成「没人检查」；行为侧由 request-passthrough.test.mjs 双证）。
+const requestHandler = (() => {
+  const start = nodeSrc.indexOf("ctx.on('agent/request'")
+  if (start < 0) return null
+  const end = nodeSrc.indexOf('}, { global: true })', start)
+  return end < 0 ? null : nodeSrc.slice(start, end)
+})()
 const must = [
   [/export const inject = \['llm'\]/, 'export const inject = ["llm"] 存在（否则 ctx.llm 取不到）'],
-  [/agent\/request/, 'agent/request 覆盖会话已选模型'],
-  [/\{ global: true, prepend: true \}/, 'agent/request 监听带 { global: true, prepend: true }'],
+  [/agent\/inbox\/inserted/, 'inbox 插入时计算并 select（agent/inbox/inserted）'],
+  [/agent\/turn-stopping/, '排队的下一 turn 在 turn-stopping 决策'],
+  [/agent\.model\.select\(/, '唯一写入口是 agent.model.select()'],
+  [/agent\/request/, 'agent/request 只读观察仍注册'],
 ]
 for (const [re, label] of must) {
   if (re.test(nodeSrc)) ok(label)
   else bad(`缺失不变式: ${label}`)
+}
+// agent/inbox/inserted 的注册必须带 { global: true }，否则收不到其它 scope 的事件。
+{
+  const start = nodeSrc.indexOf("ctx.on('agent/inbox/inserted'")
+  const block = start < 0 ? '' : nodeSrc.slice(start, start + 900)
+  if (/\{ global: true \}/.test(block)) ok('agent/inbox/inserted 监听带 { global: true }')
+  else bad('缺失不变式: agent/inbox/inserted 监听带 { global: true }')
+}
+// 只读观察的源码级证明：不允许对返回的 config 赋 provider/model/reasoningEffort，
+// 必须原样 `return config`。
+if (!requestHandler) {
+  bad('找不到 agent/request 处理器（无法证明只读观察）')
+} else {
+  const rewrites = [...requestHandler.matchAll(/\b(config|resolved|proposedConfig)\.(provider|model|reasoningEffort)\s*=/g)]
+  if (rewrites.length > 0) bad(`agent/request 仍在改写: ${rewrites.map((m) => `${m[1]}.${m[2]}`).join(', ')}`)
+  else ok('agent/request 处理器无 provider/model/reasoningEffort 赋值（只读观察）')
+  if (/(provider|model|reasoningEffort)\s*:\s*selection\./.test(requestHandler)) bad('agent/request 仍注入 selection 字段')
+  else ok('agent/request 不注入路由 selection')
+  if (!/\breturn\s+config\b/.test(requestHandler)) bad('agent/request 没有原样 return config')
+  else ok('agent/request 原样 return config')
+}
+for (const [re, label] of [
+  [/agent\/request: overriding/, '旧日志 agent/request: overriding 残留'],
+  [/agent\/request: routed/, '旧日志 agent/request: routed 残留'],
+]) {
+  if (re.test(nodeSrc)) bad(label)
+  else ok(`无残留: ${label.replace(' 残留', '')}`)
 }
 const forbidden = [
   [/llm\/stream/, 'llm/stream 旧方案残留'],
@@ -88,11 +127,30 @@ rmSync(scratch, { force: true })
 if (shippedClient === builtClient) ok('lib/client.js 与 src/client 源一致（产物新鲜；比对不写盘）')
 else bad('lib/client.js 与 src/client 源不一致：需要重新构建并提交')
 
-// ---------- 5. 默认定义 ----------
-if (DEFAULTS.strategies.length > 0 && (!DEFAULTS.advancedSupport?.provider || !DEFAULTS.advancedSupport?.model)) {
-  bad('DEFAULTS 有策略但缺高级模型支援')
+// ---------- 5. 默认定义（schema v2）----------
+// 0.16.0 的 DEFAULTS 是三档 + 每档峰谷表；tierRouting 必须默认关闭（恒低档），
+// 否则升级会改变所有用户的行为。
+const lowTable = DEFAULTS.targets?.low
+if (!lowTable?.valley?.provider || !lowTable?.valley?.model) {
+  bad('DEFAULTS.targets.low.valley 缺失（schema v2 默认值）')
+} else if (!DEFAULTS.targets?.mid || !DEFAULTS.targets?.high) {
+  bad('DEFAULTS.targets 缺 mid/high')
+} else if (DEFAULTS.tierRouting?.enabled !== false) {
+  bad('DEFAULTS.tierRouting.enabled 必须为 false（默认行为等价 0.15）')
+} else if (lowTable.costRouting !== true) {
+  bad('DEFAULTS.targets.low.costRouting 必须为 true（成本决策默认开启）')
+} else if (!DEFAULTS.advancedSupport?.provider || !DEFAULTS.advancedSupport?.model) {
+  bad('DEFAULTS 缺高级模型支援')
 } else {
-  ok(`DEFAULTS: ${DEFAULTS.strategies.length} 条策略, 高级模型支援 ${DEFAULTS.advancedSupport.provider}/${DEFAULTS.advancedSupport.model}`)
+  ok(`DEFAULTS: 三档 v2, tierRouting=${DEFAULTS.tierRouting.enabled ? 'on' : 'off'}, low.valley=${lowTable.valley.provider}/${lowTable.valley.model}, advanced=${DEFAULTS.advancedSupport.provider}/${DEFAULTS.advancedSupport.model}`)
+}
+// 纯路由核心必须是独立模块且被 index 再导出（下游 t6/t10 直接 import 一处）。
+if (!existsSync(join(root, 'lib', 'routing.js'))) bad('lib/routing.js 不存在（配置/成本决策纯函数）')
+else {
+  const routingSrc = readFileSync(join(root, 'lib', 'routing.js'), 'utf8')
+  if (!/export function normalizeConfig/.test(routingSrc) || !/export function resolveTargets/.test(routingSrc) || !/export function decide/.test(routingSrc)) {
+    bad('lib/routing.js 缺少 normalizeConfig / resolveTargets / decide 导出')
+  } else ok('lib/routing.js 提供 normalizeConfig / resolveTargets / decide')
 }
 
 // ---------- 6. 版本一致性 ----------

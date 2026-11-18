@@ -1,6 +1,6 @@
 {
   "name": "dsh-peak-valley-router",
-  "version": "0.13.1",
+  "version": "0.16.0",
   "description": "Peak/off-peak multi-model routing policy engine for DeepSeek Harness, with a Settings GUI.",
   "license": "MIT",
   "type": "module",
@@ -23,7 +23,6 @@
     "url": "https://github.com/ccccwwwxx/dsh-bifenggang/issues"
   },
   "engines": {
-    "dsh": ">=0.12.0 <0.14.0",
     "node": ">=22.19.0"
   },
   "exports": {
@@ -38,10 +37,10 @@
   ],
   "scripts": {
     "build": "node src/build-client.mjs",
-    "check": "node --check lib/index.js && node --check lib/client.js && node --check lib/text.js",
-    "test": "node scripts/roundtrip.test.mjs && node scripts/copy.test.mjs && node scripts/session-state.test.mjs && node scripts/session-fuzz.mjs",
+    "check": "node --check lib/index.js && node --check lib/routing.js && node --check lib/classifier.js && node --check lib/state.js && node --check lib/client.js && node --check lib/text.js",
+    "test": "node scripts/config-v2.test.mjs && node scripts/migrate-v1.test.mjs && node scripts/cost-routing.test.mjs && node scripts/classifier.test.mjs && node scripts/tier-routing.test.mjs && node scripts/probe.test.mjs && node scripts/catalog-warning.test.mjs && node scripts/state-sync.test.mjs && node scripts/restore.test.mjs && node scripts/inbox-routing.test.mjs && node scripts/request-passthrough.test.mjs && node scripts/copy.test.mjs && node scripts/session-state.test.mjs && node scripts/host-compat.test.mjs && node scripts/catalog-refresh.test.mjs && node scripts/session-fuzz.mjs",
     "fuzz": "node scripts/session-fuzz.mjs",
-    "verify": "node scripts/verify.mjs && node scripts/roundtrip.test.mjs && node scripts/copy.test.mjs && node scripts/session-state.test.mjs && node scripts/session-fuzz.mjs"
+    "verify": "node scripts/verify.mjs && node scripts/config-v2.test.mjs && node scripts/migrate-v1.test.mjs && node scripts/cost-routing.test.mjs && node scripts/classifier.test.mjs && node scripts/tier-routing.test.mjs && node scripts/probe.test.mjs && node scripts/catalog-warning.test.mjs && node scripts/state-sync.test.mjs && node scripts/restore.test.mjs && node scripts/inbox-routing.test.mjs && node scripts/request-passthrough.test.mjs && node scripts/copy.test.mjs && node scripts/session-state.test.mjs && node scripts/host-compat.test.mjs && node scripts/catalog-refresh.test.mjs && node scripts/session-fuzz.mjs"
   },
   "dsh": {
     "bundle": {
@@ -58,6 +57,6 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-llm": "^0.1.1-rc.2 || ^0.1.7-rc.1 || ^0.2.0-rc.2"
+    "@deepseek-ai/dsh-llm": "^0.2.0-rc.2 || ^0.2.1-rc.2 || ^0.2.2-rc.1"
   }
 }

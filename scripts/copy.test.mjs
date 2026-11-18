@@ -149,7 +149,26 @@ check('no hardcoded CJK copy is left in the client sources', () => {
 
 check('every placeholder used by the client exists in both languages', () => {
   // Placeholders the client actually passes; a typo would silently render "{time}".
-  const expected = { saved: ['time'], saveFailed: ['detail'], errStrategy: ['index', 'issue'], errMore: ['count'], strategyLabel: ['index'], decoupledCount: ['count'] }
+  const expected = {
+    saved: ['time'],
+    saveFailed: ['detail'],
+    errStrategy: ['index', 'issue'],
+    errMore: ['count'],
+    strategyLabel: ['index'],
+    decoupledCount: ['count'],
+    // 0.16：三档 / 成本决策 / 告警 / 试算
+    advancedForMax: ['model'],
+    errTargetIncomplete: ['tier'],
+    tierProbeResult: ['score', 'tier', 'model'],
+    tierProbeFailed: ['detail'],
+    warningUnroutable: ['target', 'kind', 'kept'],
+    warningUnverified: ['target'],
+    warningCleared: ['target'],
+    warningGeneric: ['kind', 'target'],
+    warningMore: ['count'],
+    holidayPresetAdd: ['year'],
+    holidayPresetMissing: ['year'],
+  }
   for (const [key, names] of Object.entries(expected)) {
     for (const lang of [zh, en]) {
       for (const name of names) {
@@ -157,6 +176,20 @@ check('every placeholder used by the client exists in both languages', () => {
       }
     }
   }
+})
+
+// A translation that drops a placeholder makes the client render a template with a
+// missing value (e.g. "峰时窗口：" with no numbers). Guard the whole dictionary,
+// not just the keys the client happens to pass today.
+check('zh and en declare the same placeholders for every key', () => {
+  const names = (value) => [...String(value).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort()
+  const offenders = []
+  for (const key of Object.keys(zh)) {
+    const a = JSON.stringify(names(zh[key]))
+    const b = JSON.stringify(names(en[key]))
+    if (a !== b) offenders.push(`${key}: zh ${a} vs en ${b}`)
+  }
+  if (offenders.length) throw new Error(`placeholder mismatch:\n       ${offenders.join('\n       ')}`)
 })
 
 // --- 2. server error localization -------------------------------------------

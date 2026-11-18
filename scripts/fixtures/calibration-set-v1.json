@@ -1,0 +1,302 @@
+{
+  "name": "calibration-set-v1",
+  "frozenAt": "2026-11-18",
+  "source": "Verifier-written sample set used in t10 (scripts/t10-calibration.mjs). Frozen verbatim per t14 rule 1: entries and labels are NOT edited. Any disputed label is listed separately in docs/VERIFICATION_routing_v2.md instead of changed here.",
+  "labelRule": {
+    "high": "abstract / principle / design / planning; asks for judgement, not action",
+    "mid": "scoped edit on a named file, or analysis with concrete anchors (run tests + report, review file with scope)",
+    "low": "concrete execution: run/install/just-do-it; no per-file judgement required"
+  },
+  "tiers": [
+    "high",
+    "mid",
+    "low"
+  ],
+  "samples": [
+    {
+      "id": "v1-01",
+      "text": "为什么 DSH 在 0.2.2 里把 agent/request 标成弃用？",
+      "label": "high",
+      "category": "abstract-principle"
+    },
+    {
+      "id": "v1-02",
+      "text": "解释一下峰谷路由和成本路由到底解决的是不是同一个问题",
+      "label": "high",
+      "category": "abstract-explain"
+    },
+    {
+      "id": "v1-03",
+      "text": "如果要在路由里再加一个维度，你会怎么设计这个维度？",
+      "label": "high",
+      "category": "abstract-design"
+    },
+    {
+      "id": "v1-04",
+      "text": "评估一下把状态存到 sqlite 和继续用 json 的取舍",
+      "label": "high",
+      "category": "abstract-tradeoff"
+    },
+    {
+      "id": "v1-05",
+      "text": "这个插件现在的架构有什么风险，值不值得重构？",
+      "label": "high",
+      "category": "abstract-risk"
+    },
+    {
+      "id": "v1-06",
+      "text": "总结一下这两周从 0.15 到 0.16 我们都改了什么",
+      "label": "high",
+      "category": "abstract-summary"
+    },
+    {
+      "id": "v1-07",
+      "text": "为什么我的回复总是被截断？",
+      "label": "high",
+      "category": "short-abstract"
+    },
+    {
+      "id": "v1-08",
+      "text": "为什么不生效？",
+      "label": "high",
+      "category": "short-abstract-critical"
+    },
+    {
+      "id": "v1-09",
+      "text": "怎么判断一个请求应该走高档次还是低档次模型？",
+      "label": "high",
+      "category": "abstract-howto"
+    },
+    {
+      "id": "v1-10",
+      "text": "对比 RouteLLM 和 FrugalGPT 在成本控制上的思路差异",
+      "label": "high",
+      "category": "abstract-compare"
+    },
+    {
+      "id": "v1-11",
+      "text": "下一步应该先发布还是先做独立验收？",
+      "label": "high",
+      "category": "abstract-decision"
+    },
+    {
+      "id": "v1-12",
+      "text": "帮我想想怎么向完全不懂路由的用户解释这个功能",
+      "label": "high",
+      "category": "abstract-communication"
+    },
+    {
+      "id": "v1-13",
+      "text": "多子问题：这个阈值合理吗？偏低会怎样？偏高又会怎样？",
+      "label": "high",
+      "category": "multi-question"
+    },
+    {
+      "id": "v1-14",
+      "text": "Why does the router keep switching models mid-conversation?",
+      "label": "high",
+      "category": "english-abstract"
+    },
+    {
+      "id": "v1-15",
+      "text": "这几行配置我应该怎么填？\n```yaml\ntierRouting:\n  enabled: false\n```",
+      "label": "high",
+      "category": "code-block-but-asking-howto"
+    },
+    {
+      "id": "v1-16",
+      "text": "以下是完整的构建日志，里面有 3 个 warning，请逐条解释这些 warning 的含义以及是否影响发布：\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "label": "high",
+      "category": "long-log-ask-explain"
+    },
+    {
+      "id": "v1-17",
+      "text": "这段代码为什么会在并发时出错？\n```js\nlet n = 0\nn += 1\n```",
+      "label": "high",
+      "category": "code-block-explain-why"
+    },
+    {
+      "id": "v1-18",
+      "text": "TypeError: Cannot read properties of undefined (reading id)\n    at run (lib/index.js:44:12)\n为什么会出现这个错误？",
+      "label": "high",
+      "category": "stack-ask-why"
+    },
+    {
+      "id": "v1-19",
+      "text": "Could you review the tradeoffs of the three-tier scheme and tell me whether the thresholds are sensible?",
+      "label": "high",
+      "category": "english-review"
+    },
+    {
+      "id": "v1-20",
+      "text": "帮我看一下这个截图里的设置对不对",
+      "label": "high",
+      "category": "image-audit",
+      "options": {
+        "hasImage": true
+      }
+    },
+    {
+      "id": "v1-21",
+      "text": "帮我改 lib/index.js 第 120 行",
+      "label": "mid",
+      "category": "scoped-edit-design-D4"
+    },
+    {
+      "id": "v1-22",
+      "text": "我想确认 scripts 里的测试在当前 Node 版本上都能过，请运行 pnpm test 并把每个 suite 的耗时列出来，失败的单独说明原因",
+      "label": "mid",
+      "category": "run-plus-report"
+    },
+    {
+      "id": "v1-23",
+      "text": "把 src/client/40-settings.js 里保存按钮的文案改短一点",
+      "label": "mid",
+      "category": "scoped-edit"
+    },
+    {
+      "id": "v1-24",
+      "text": "给 lib/routing.js 的 decide 增加一个参数，并补上对应测试",
+      "label": "mid",
+      "category": "scoped-feature"
+    },
+    {
+      "id": "v1-25",
+      "text": "这段报错是 TypeError: x is not a function，在 lib/a.js:33 触发，先定位再改",
+      "label": "mid",
+      "category": "error-plus-diagnose"
+    },
+    {
+      "id": "v1-26",
+      "text": "把 config-v2.test.mjs 里第三个用例改成同时覆盖 mid 档",
+      "label": "mid",
+      "category": "scoped-test-edit"
+    },
+    {
+      "id": "v1-27",
+      "text": "检查 lib/state.js 的锁逻辑，列出可能死锁的路径，先不要改代码",
+      "label": "mid",
+      "category": "review-with-scope"
+    },
+    {
+      "id": "v1-28",
+      "text": "把 README 里「三档」那一节补一段说明，解释 mid 和 high 默认共用 low 的原因",
+      "label": "mid",
+      "category": "doc-edit-with-reason"
+    },
+    {
+      "id": "v1-29",
+      "text": "把 lib/classifier.js 的 short-command 特征去掉，看看会挂哪些测试",
+      "label": "mid",
+      "category": "experiment-with-path"
+    },
+    {
+      "id": "v1-30",
+      "text": "重构 lib/state.js 的写入顺序，但行为必须和现在完全一致",
+      "label": "mid",
+      "category": "scoped-refactor"
+    },
+    {
+      "id": "v1-31",
+      "text": "把 lib/text.js 里的「额度」改成「余额」",
+      "label": "mid",
+      "category": "scoped-rename"
+    },
+    {
+      "id": "v1-32",
+      "text": "删掉 scripts/roundtrip.test.mjs",
+      "label": "mid",
+      "category": "delete-file"
+    },
+    {
+      "id": "v1-33",
+      "text": "给 lib/classifier.js 第 222 行加个注释说明 short-command 的来历",
+      "label": "mid",
+      "category": "line-edit"
+    },
+    {
+      "id": "v1-34",
+      "text": "把 policy.json.bak-v1 删掉，然后重新生成一份",
+      "label": "mid",
+      "category": "file-maintenance"
+    },
+    {
+      "id": "v1-35",
+      "text": "修复这个 ENOENT: no such file or directory, open lib/state.js 报错",
+      "label": "mid",
+      "category": "fix-specific-error"
+    },
+    {
+      "id": "v1-36",
+      "text": "这个函数签名不对，按下面这样改：\n```js\nselect(target)\n```",
+      "label": "mid",
+      "category": "code-edit-instruction"
+    },
+    {
+      "id": "v1-37",
+      "text": "把 state.json 里的 enabled 改成 false 再重启插件",
+      "label": "mid",
+      "category": "state-edit"
+    },
+    {
+      "id": "v1-38",
+      "text": "npm run verify",
+      "label": "low",
+      "category": "command-only-english"
+    },
+    {
+      "id": "v1-39",
+      "text": "pnpm -C dsh-bifenggang test",
+      "label": "low",
+      "category": "command-with-path"
+    },
+    {
+      "id": "v1-40",
+      "text": "git status",
+      "label": "low",
+      "category": "command-only"
+    },
+    {
+      "id": "v1-41",
+      "text": "node src/build-client.mjs",
+      "label": "low",
+      "category": "build-command"
+    },
+    {
+      "id": "v1-42",
+      "text": "跑一遍全部测试然后把结果贴出来",
+      "label": "low",
+      "category": "chinese-run-tests"
+    },
+    {
+      "id": "v1-43",
+      "text": "安装 eslint 并生成默认配置",
+      "label": "low",
+      "category": "install-imperative"
+    },
+    {
+      "id": "v1-44",
+      "text": "运行 node --test scripts/tier-routing.test.mjs",
+      "label": "low",
+      "category": "explicit-test-run"
+    },
+    {
+      "id": "v1-45",
+      "text": "帮我跑一下 npm test 2>&1 并把 stderr 写到 tmp.log",
+      "label": "low",
+      "category": "run-with-redirect"
+    },
+    {
+      "id": "v1-46",
+      "text": "Run the full test suite and summarize which suites are red.",
+      "label": "low",
+      "category": "english-run-summarize"
+    },
+    {
+      "id": "v1-47",
+      "text": "帮我把 build 出来的 client 重新生成，命令是 node src/build-client.mjs",
+      "label": "low",
+      "category": "run-with-explicit-command"
+    }
+  ]
+}

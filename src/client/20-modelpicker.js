@@ -20,7 +20,10 @@
 
 function ModelPicker(props) {
   const h = React.createElement
-  const { label, value, providers, models, modelsLoading, modelsError, onChange, onNeedModels, t, narrow } = props
+  const { label, value, providers, models, modelsLoading, modelsError, onChange, onNeedModels, t, narrow, disabled } = props
+  // disabled：用于「跟随低档」时的只读展示（继承值不允许在这里改），以及成本决策
+  // 关闭后置灰的峰时子区。置灰但仍显示当前值，绝不隐藏——用户要能看见继承到什么。
+  const locked = disabled === true
   const v = value || {}
   const providerList = Array.isArray(providers) ? providers : []
 
@@ -92,7 +95,7 @@ function ModelPicker(props) {
 
   const status = failed ? t('modelsLoadFailed') : (busy ? t('modelsLoading') : '')
 
-  return h('div', { style: { minWidth: 0 } },
+  return h('div', { style: { minWidth: 0, opacity: locked ? 0.7 : 1 } },
     label
       ? h('div', {
         style: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary, #666)', marginBottom: 4 },
@@ -104,6 +107,7 @@ function ModelPicker(props) {
         title: v.provider || '',
         value: v.provider || '',
         style: ctrlStyle,
+        disabled: locked,
         onChange: (e) => {
           const next = e.target.value
           // 切换 provider 必须清空 model，避免 provider/model 不匹配。
@@ -120,12 +124,14 @@ function ModelPicker(props) {
         title: v.model || '',
         value: v.model || '',
         style: ctrlStyle,
+        disabled: locked,
         onChange: (e) => onChange({ ...v, model: e.target.value }),
       }, ...modelChildren),
       h('select', {
         'aria-label': label ? label + ' · ' + t('effortDefault') : t('effortDefault'),
         value: v.reasoningEffort || '',
         style: ctrlStyle,
+        disabled: locked,
         onChange: (e) => onChange({ ...v, reasoningEffort: e.target.value }),
       }, effortChoices.map(([val, text]) => h('option', { key: val || '__default', value: val }, text))),
     ),

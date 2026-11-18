@@ -1,13 +1,17 @@
 // Randomized property test (differential oracle) for per-session routing.
 //
 // Independence: the EXPECTED behaviour is recomputed here straight from
-// state.json, never from the plugin's own helpers, and the plugin is judged
-// only by observable behaviour — identity passthrough when off, a rewritten
-// model when on. Session ids include hostile keys (`__proto__`, `constructor`),
-// empty/near-empty ids, unicode and an over-long id.
-import { fileURLToPath, pathToFileURL } from 'node:url'
+// state.json, never from the plugin's own helpers, and the plugin is judged only
+// by observable behaviour — no `select` when off, the routed target when on.
+// Session ids include hostile keys (`__proto__`, `constructor`), empty/near-empty
+// ids, unicode and an over-long id.
+//
+// 0.16.0 seam: the observation point is `agent/inbox/inserted` + the fake agent's
+// `model.current()` (the old `agent/request` rewrite is gone; core 0.2.2-rc.1
+// throws on it).
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const mod = await import(pathToFileURL(join(here, '..', 'lib', 'index.js')).href)
@@ -23,26 +27,46 @@ const pick = (arr) => arr[Math.floor(rnd() * arr.length) % arr.length]
 const IDS = ['__proto__', 'constructor', 'prototype', 'hasOwnProperty', 'toString', 'valueOf',
   'normal-session-1', 'normal-session-2', '中文会话', 'id with spaces', 'x'.repeat(300), '0']
 
+const PROVIDERS = [{ id: 'deepseek-official', name: 'DeepSeek' }, { id: 'codex', name: 'Codex' }]
+const MODELS = {
+  'deepseek-official': [{ id: 'deepseek-flash' }, { id: 'deepseek-chat' }],
+  codex: [{ id: 'gpt-5.6-luna' }, { id: 'gpt-6-astra' }],
+}
+// Seed model differs from the routed default so "changed" is observable.
+const SEED = { provider: 'codex', model: 'gpt-6-astra', reasoningEffort: 'low' }
+const ROUTED = { provider: 'deepseek-official', model: 'deepseek-flash', reasoningEffort: 'low' }
+const wait = (ms = 100) => new Promise((resolve) => setTimeout(resolve, ms))
+
 function freshHost() {
   rmSync(root, { recursive: true, force: true })
   mkdirSync(pluginDir, { recursive: true })
   process.env.DSH_HOME = root
   writeFileSync(join(pluginDir, 'state.json'), JSON.stringify({ enabled: false }))
-  const listeners = []
+  return applyHost()
+}
+
+function applyHost() {
+  const listeners = new Map()
   const routes = new Map()
-  const providers = [{ id: 'deepseek-official', name: 'DeepSeek' }, { id: 'codex', name: 'Codex' }]
-  const models = {
-    'deepseek-official': [{ id: 'deepseek-flash' }, { id: 'deepseek-chat' }],
-    codex: [{ id: 'gpt-5.6-luna' }, { id: 'gpt-6-astra' }],
+  const llm = {
+    listProviders: () => PROVIDERS,
+    listModels: async (provider) => MODELS[provider] ?? [],
+    resolveModelInfo: async (provider, id) => ({
+      provider,
+      id,
+      name: id,
+      reasoning: { efforts: ['low', 'high', 'max'].map((effort) => ({ id: effort, name: effort })) },
+    }),
   }
-  const llm = { listProviders: () => providers, listModels: async (p) => models[p] ?? [] }
-  const connection = { fetch: { register: (r) => { routes.set(r.path, r); return () => {} } } }
+  const agentsService = { turnBoundaryOf: (session) => session.__boundary }
+  const connection = { fetch: { register: (route) => { routes.set(route.path, route); return () => {} } } }
   const connCtx = { get: (n) => (n === 'connection' ? connection : undefined), effect: (fn) => { fn(); return () => {} } }
   mod.apply({
     llm,
-    get: (n) => (n === 'llm' ? llm : undefined),
-    on: (event, fn) => { if (event === 'agent/request') listeners.push(fn); return () => {} },
+    get: (n) => (n === 'llm' ? llm : n === 'agents' ? agentsService : undefined),
+    on: (event, fn) => { if (!listeners.has(event)) listeners.set(event, []); listeners.get(event).push(fn); return () => {} },
     inject: (deps, cb) => { if (deps.includes('connection')) cb(connCtx) },
+    effect: (fn) => { fn(); return () => {} },
   })
   const call = async (endpoint, payload) => {
     const route = routes.get(`/api/dsh-peak-valley-router.${endpoint}`)
@@ -53,23 +77,57 @@ function freshHost() {
     })
     return (await (await route.fetch(req)).json()).result
   }
-  return { call, listener: () => listeners[0] }
+  // Dispatch one user message for `id` through the real seam. Returns the model
+  // the fake agent reports immediately afterwards.
+  const route = (id) => {
+    let current = { ...SEED }
+    const session = {
+      __boundary: { openTurnStartSeq: null, lastTurn: 0 },
+      append: (type, data) => { if (type === 'model/selection') current = { ...data } },
+    }
+    if (id === undefined) {
+      session.header = {}
+    } else {
+      session.header = { id }
+    }
+    const agent = {
+      id: id,
+      session,
+      status: 'idle',
+      inbox: { nextTurn: [], nextStep: [] },
+      model: {
+        current: () => ({ ...current }),
+        select: (selection) => {
+          const next = { provider: selection.provider, model: selection.model }
+          if (selection.reasoningEffort !== undefined) next.reasoningEffort = selection.reasoningEffort
+          if (JSON.stringify(next) === JSON.stringify(current)) return
+          current = next
+        },
+      },
+    }
+    const message = { id: `m-${Math.random().toString(36).slice(2)}`, source: { kind: 'user' }, content: [{ type: 'text', text: 'go' }] }
+    agent.inbox.nextTurn.push(message)
+    for (const fn of listeners.get('agent/inbox/inserted') ?? []) fn({ agent, message })
+    return { current: { ...current }, agent }
+  }
+  return { call, route, listeners }
 }
 
 // The oracle: recomputed from disk, with no knowledge of the plugin's code.
 const diskState = () => JSON.parse(readFileSync(join(pluginDir, 'state.json'), 'utf8'))
 const expected = (state, id) => {
+  if (id === undefined) return state.enabled === true
   const map = state.sessions && typeof state.sessions === 'object' ? state.sessions : {}
   return Object.prototype.hasOwnProperty.call(map, id) ? map[id] === true : state.enabled === true
 }
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 
-const SEED = { provider: 'seed-provider', model: 'seed-model', reasoningEffort: 'low' }
 let failures = 0
 const fail = (msg) => { failures++; console.log(`  FAIL ${msg}`) }
 
-const host = freshHost()
+let host = freshHost()
+await wait()
 const call = host.call
-const listener = host.listener()
 
 // 1. random operation sequence, checking the oracle after every step.
 const OPS = 200
@@ -93,18 +151,19 @@ for (let i = 0; i < OPS; i++) {
   // Behavioural check against the oracle on a sample of ids.
   for (const probe of IDS) {
     const want = expected(state, probe)
-    const out = await listener({ agent: { session: { header: { id: probe } } } }, async () => SEED)
-    const rewrote = out !== SEED
-    if (want && !rewrote) fail(`op ${i}: expected routing for ${JSON.stringify(probe)} but got identity passthrough`)
-    if (!want && rewrote) fail(`op ${i}: expected passthrough for ${JSON.stringify(probe)} but it was rewritten to ${out.provider}/${out.model}`)
+    const { current } = host.route(probe)
+    const rewrote = !same(current, SEED)
+    if (want && !rewrote) fail(`op ${i}: expected routing for ${JSON.stringify(probe)} but the model stayed ${JSON.stringify(current)}`)
+    if (!want && rewrote) fail(`op ${i}: expected no routing for ${JSON.stringify(probe)} but it was changed to ${JSON.stringify(current)}`)
+    if (want && rewrote && !same(current, ROUTED)) fail(`op ${i}: routed ${JSON.stringify(probe)} to ${JSON.stringify(current)} instead of ${JSON.stringify(ROUTED)}`)
   }
 }
 
 // 2. no session id at all -> the global default decides.
 {
   const state = diskState()
-  const out = await listener({ agent: undefined }, async () => SEED)
-  const rewrote = out !== SEED
+  const { current } = host.route(undefined)
+  const rewrote = !same(current, SEED)
   if (state.enabled === true && !rewrote) fail('unreadable id must fall back to the global default (ON)')
   if (state.enabled !== true && rewrote) fail('unreadable id must fall back to the global default (OFF)')
 }
@@ -124,29 +183,17 @@ for (let i = 0; i < OPS; i++) {
 // 4. persistence: re-apply the module against the SAME directory and re-check the
 //    oracle, so the overrides must have survived a reload from disk.
 {
+  // v2 persists routing metadata (applied/restore) on a microtask; drain any
+  // queued write from the last probe so the snapshot is taken at a quiet point.
+  await new Promise((resolve) => setTimeout(resolve, 30))
   const before = diskState()
-  const listeners = []
-  const routes = new Map()
-  const providers = [{ id: 'deepseek-official', name: 'DeepSeek' }, { id: 'codex', name: 'Codex' }]
-  // The catalog must list every target the DEFAULT policy can pick, including the
-  // advancedSupport fallback: on a weekend/holiday no weekday strategy matches, so
-  // omitting it here made this phase fail by wall-clock day rather than by defect.
-  const models = { 'deepseek-official': [{ id: 'deepseek-flash' }], codex: [{ id: 'gpt-5.6-luna' }, { id: 'gpt-6-astra' }] }
-  const llm = { listProviders: () => providers, listModels: async (p) => models[p] ?? [] }
-  const connection = { fetch: { register: (r) => { routes.set(r.path, r); return () => {} } } }
-  const connCtx = { get: (n) => (n === 'connection' ? connection : undefined), effect: (fn) => { fn(); return () => {} } }
-  mod.apply({
-    llm,
-    get: (n) => (n === 'llm' ? llm : undefined),
-    on: (event, fn) => { if (event === 'agent/request') listeners.push(fn); return () => {} },
-    inject: (deps, cb) => { if (deps.includes('connection')) cb(connCtx) },
-  })
+  host = applyHost()
+  await wait()
   const after = diskState()
   for (const probe of IDS) {
     const want = expected(after, probe)
-    const out = await listeners[0]({ agent: { session: { header: { id: probe } } } }, async () => SEED)
-    const rewrote = out !== SEED
-    if (want !== rewrote) fail(`after reload, id ${JSON.stringify(probe)}: expected ${want ? 'routing' : 'passthrough'}`)
+    const { current } = host.route(probe)
+    if (want !== !same(current, SEED)) fail(`after reload, id ${JSON.stringify(probe)}: expected ${want ? 'routing' : 'no routing'}`)
   }
   if (JSON.stringify(after) !== JSON.stringify(before)) fail('state.json changed across a reload')
 }

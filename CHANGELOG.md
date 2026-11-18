@@ -16,42 +16,140 @@
 
 **1.0 的条件**：路由语义与配置格式冻结，并经过若干个版本的实际使用。在那之前的破坏性变更会写在下面。
 
-## [0.13.1] - 2026-11-16
+## [0.16.0] - 2026-11-19
 
-**CC-HAHA 原生集成发布**：把已验证的 CC-HAHA v0.7.8 适配作为可审计补丁纳入插件项目，覆盖桌面、手机 `/m`、服务端按轮路由和远程白名单。
+**智能程度路由（默认关闭）+ 三档峰谷表 + 可见告警 + 跨窗口状态同步**。
+0.15 的单策略配置自动迁移为 v2 `targets.low`（旧策略只读快照保留在 `legacy`）；旧文件无需手工迁移。
+
+### 历史整合
+
+本版建立在 `origin/master` 之上，历史与原 0.14.x/0.15 线合并为一条线性历史（旧线保留在分支 `backup/pre-rebase-016` 与标签 `v0.14.0` / `v0.14.1` / `v0.15.0`）。
+远端 0.13.x 线的 `integrations/cc-haha/` 与 `market/` 元数据**完整保留**；其另外四项特性（节日日期合法性校验、UTC 偏移钳制、首次使用引导、market 版本号）尚未并入，计划在 0.16.1 补齐（见 `docs/RELEASE_0.16.0_CHECKLIST.md` 末尾的待办）。`scripts/roundtrip.test.mjs` 已由 `config-v2.test.mjs` + `migrate-v1.test.mjs` 取代。
+
+### 功能
+
+- **智能程度路由（默认关闭，需手动开启）**：`tierRouting.enabled=false` 时恒用低档，行为与 0.15 一致；开启后按消息的具象程度分三档——抽象→高、中等→中、具象执行→低。阈值可编辑（`concreteThreshold` 默认 0.55、`mediumThreshold` 默认 0.28），带 10 分钟迟滞与显式 override（safety / low-explicit / high-explicit）；空文本/纯图片回退低档。设置页提供样例试算（`probe` RPC，只读不落盘）与两阈值编辑。
+- **成本决策路由（每档独立，默认开）**：`targets.<tier>.costRouting` 为 true 时该档在峰时窗口使用峰时目标，false 时恒用谷时；low/mid/high 默认都开，每档可单独关闭。
+- **每档各自的峰谷表**：`targets.low` 独立；`targets.mid` / `targets.high` 默认 `{ share: 'low' }` 跟随低档整张表，取消跟随后可独立配置谷时模型、峰时开关/星期/窗口/峰时模型。
+- **峰谷窗口与节假日可编辑**：设置页支持时区偏移、节假日增删（按年分组、内置 2025/2026/2027 整年预设）；峰时窗口必须 start < end 且不跨午夜，非法输入就地报错。
+- **目标不可路由时可见告警**：`get.warnings[]`（红/黄分级、上限 20）与 `recentWarnings[]`（含 cleared 历史、上限 50）；不可用目标回退并告警，不再静默。v1 多策略迁移产生 `legacy-extra-strategies` 提示。
+- **跨窗口 / 多进程状态同步**：`state.json` v2 带 `revision`、各键 `*UpdatedAt`、`tombstones`、`applied`、`restore`、`restorePending`；锁 + 原子写 + 逐键较新合并。`set` 支持 `expectedRevision` 乐观并发，冲突返回 `stale-revision`；设置页可见时 3 秒轮询。
+
+### 新接缝
+
+- 路由改写从 `agent/request` 改到 `agent/inbox/inserted` 的 `select()`：在 step preparation **之前**固定模型选择，满足 0.2.2-rc.1 的硬校验（在 `agent/request` 之后改 provider/model/effort 会抛 `after step preparation fixed`）；`agent/request` 改为只读观测（返回 `next()` 同一对象）。
+- 真核实测（0.2.2-rc.1 headless）：`inbox: decision → inbox: select → pre-step match=true → request: observed`，目标≠会话模型不再报错；同环境 0.15.0 反向证伪成立（见 `docs/VERIFICATION_routing_v2.md`）。
+
+### 迁移与兼容
+
+- `schemaVersion: 1` 的 `strategies` 自动迁移为 v2 `targets.low`（峰时表/星期/窗口一并迁移）；第 2 条及以后不再参与路由，但保留在只读 `legacy` 快照中，并给出 `legacy-extra-strategies` 提示。无需手工改文件。
+- `advancedSupport` 仍是独立的 max 轴（只在会话显式要求 `max` 时使用，不作为未命中兜底）。
+- `peerDependencies` 增加 `^0.2.2-rc.1`（已在 0.2.2-rc.1 真核实测）；`^0.2.0-rc.2 || ^0.2.1-rc.2` 保留。
+- 配置/状态仍向后兼容：新增字段只追加；历史上写出的嵌套 `peak.model` 写法仍可读。
+
+### 已知边界（验收口径）
+
+1. 每条被路由消息一次 state.json 原子写（含 no-op；已实测 3 条消息 revision 1→3）。
+2. 坏 state.json 时 fail-closed：开关回默认 false、该回合不路由，文件原样保留不清空。
+3. 冷启动首条消息可能因目录/effort 未热而 info unverified 不路由，第二条重试。
+4. `internal/get` 默认模型层在 0.2.2-rc.1 未被读取，已降级（新会话首条消息不再预览路由目标）。
+5. 分类器为启发式，相邻档允许错分（冻结集 6 条、留出集 3 条），**跨档反档必须为 0**，这是我们认可的验收口径。
+
+### 测试与文档
+
+- 16 套 node 测试接入 `npm test` / `npm run verify`：新增 config-v2 / migrate-v1 / cost-routing / classifier / tier-routing / probe / catalog-warning / state-sync / restore / inbox-routing / request-passthrough；`scripts/roundtrip.test.mjs` 被 v2 接缝测试取代并移除。
+- README / SKILL 更新 v2 配置示例与已知限制；新增 `docs/HEADLESS_VERIFY.md`、`docs/VERIFICATION_routing_v2.md`、`docs/RELEASE_0.16.0_CHECKLIST.md`。
+
+## [0.15.0] - 2026-11-18
+
+**默认值切换为 DeepSeek Flash fail-safe**：默认配置不再把会话押在 ChatGPT（`codex`）订阅额度上。
+
+- `lib/text.js` 的 `DEFAULTS`：策略改为**全周**（`weekdays: [1..7]`）`deepseek-official/deepseek-flash` @ `low`；`peak.enabled: false`（峰时窗口保留但不参与路由）；`advancedSupport` 改为 `deepseek-official/deepseek-flash` @ `max`。
+- 动机：GPT 订阅额度枯竭时（`usage_limit_reached` / HTTP 429），旧默认把工作日峰时段和 `max` 思考请求路由到 `codex`，表现成「一装避峰岗就报错」。新默认在订阅额度不可用时仍在官方 DeepSeek Flash 上工作；「峰时切订阅模型」仍是受支持能力，只是需要显式开启并显式配置副模型。
+- 路由逻辑未改（`lib/index.js` 不动）：`resolveSelectionDetailed` 仅在 `peak.enabled` 为真且峰时窗口命中时才走峰时分支；默认配置下工作日峰时与周末都解析为策略主模型（`reason=primary`），峰时分支不触发。
+- 测试：`scripts/session-state.test.mjs` 补 `advancedSupport` 的 `reasoningEffort` 断言（实际下发必须与默认一致）、断言默认目标必须全部留在官方 DeepSeek Flash，并新增「默认配置在工作日峰时窗口与周末均不触发峰时分支」的回归。
+- 文档：README / SKILL 的「当前版本」与 SKILL 的默认换班表、配置示例同步为新默认。
+
+## [0.14.1] - 2026-10-28
+
+- 保存成功后显示明确的成功 Toast，并仅在 `set` RPC 正常返回后显示；失败时显示错误提示，不会误报成功。
+- 刷新模型列表按钮继续保留，并与保存状态反馈区分显示。
+
+## [0.14.0] - 2026-10-28
+
+- 设置页新增常驻「刷新模型列表」按钮，重新读取 Provider 和模型，不重载或保存策略，不改变未保存编辑与当前选择。
+- 刷新期间显示加载状态并阻止重复点击；失败可重试并保留此前目录。客户端启用严格目录错误信封，避免将请求失败伪装成空目录；旧 RPC 调用保持降级行为。
+- 修复当前核心公开 `agent.id` 身份下的每会话开关识别，兼容旧的嵌套 session 字段。
+- 跨模型路由且策略未指定思考档时，不再携带原模型的显式思考档。
+- 当前 npm next 为 0.2.1-rc.4，同属 0.2.1 预发布三元组，现有 peer 范围已覆盖，无需放宽至未经验证的 0.2.2-alpha。
+- 新增设置页刷新组件回归：重拉目录、刷新状态、重复点击、草稿保留及失败保留。客户端现场 Inspect 超时，尚未完成真实页面视觉验收；不宣称 rc.4 完整启动验证。
+
+## [0.13.0] - 2026-10-18
+
+**新核心 0.2.1-rc.2 适配版**：逐条核对接缝、在真核心上跑过，结论是**代码不用改，声明的兼容区间必须改**。
+
+### 背景
+
+桌面端 `0.12.0` 仍绑宿主包 `0.2.0-rc.2`；npm 上 `@deepseek-ai/dsh` 的 `next` 是 **`0.2.1-rc.2`**
+（`latest` 仍是 `0.2.0-rc.2`）。本版是拿 `0.2.1-rc.2` 的独立核心（`core-switch.ps1` 那一套）逐项验的。
+
+### 接缝核对（先看目录，再看真核心）
+
+用宿主自带的机器可读目录 `dsh-tool-cordis/lib/types/api-catalog.js` 做逐条比对
+（旧核心 609,169 字节 / 新核心 663,240 字节）：
+
+- **事件**：`agent/request`、`agent/request-error`、`llm/adapters-updated` 的签名与 waterfall/emit
+  模式**逐字相同**。新增的只有 `plugin-market/changed`。
+- **服务**：`agentDefaultModel` 的方法表完全相同（`currentSelection()` / `saveSelection()`）；
+  `llm` 只有**新增**（`imageRequestTarget()`、`prepareCall()` 多一个可选 `configure` 参数），
+  避峰岗用到的 `listProviders()` / `listModels(provider)` 没动；
+  `connection` 的 `fetch.register` / `rpc` 仍在（`operator` 改名 `browserPeer`，本插件没用它）。
+  服务总体是「多 8 个、少 1 个」：新增的 8 个（`workingDirectory` / `webApp` / `worktrees` / `translator` …）
+  与删掉的 1 个（`invariants`）都没有被本插件引用。
+- **cordis**：`4.0.4` → `4.0.5`；`{ global: true, prepend: true }` 这两个监听选项仍在
+  —— 也就是「避峰岗在 `agent/request` 里最外层改模型」这件事依然成立。
+- **客户端**：`sidebar.footer.action`、`conversation.input.left`、`sidebar.session.row.leading`、
+  `settings.section` 四个插槽都在；`ctx.locale.register/bind`、`connection.rpc.call('/api', …)`
+  签名不变。
+
+### 实测（0.2.1-rc.2 独立核心，隔离 DSH_HOME）
+
+- 插件装进 profile 后正常加载：`apply: v0.12.0, enabled=true, … llm -> true`。
+- 三条 RPC（`get` / `providers` / `models`）全部 **HTTP 200**；`get` 里的 `active` 决策正确
+  （周日 → `fallback-first-primary`），说明策略引擎与 `llm.listProviders()` 在新核心上都在工作。
+- 客户端模块确实被宿主打包下发：`dsh-peak-valley-router` 出现在 page 预载的 client bundle 里。
+- 用 `dsh --profile headless --patch`（只把插件插进这一棵树）真跑了一个 turn：
+  `agent/request: routed model "deepseek-official/deepseek-flash" is not in the provider catalog`
+  —— 该 home 没有 `DEEPSEEK_API_KEY`，请求在 provider 层以 `MISSING_CREDENTIAL` 结束（零 token 消耗），
+  但**接缝真的被执行了**，这一行就是证据。
+- 最后把它装进真正会被启用的那个 home（`home/0.2.1-rc.2-shared`，会话与桌面端共享）再跑一次：
+  `apply: v0.13.0, enabled=false, … llm -> true`；`get` 回包的 `version` 是 `0.13.0`；
+  客户端模块同样出现在该 home 下发的 client bundle 里。安装用 `dsh plugin --profile web add <本仓库>`，
+  但 CLI 只写了 `dependencies`、**没有把包名加进 `dsh.profile.bundles`**，手动补一行才被加载。
+- 该 home 里组件默认仍是**关闭**（`state.json` 未写，行为与未装插件一致），要不要打开由你决定。
+
+### 修复（唯一硬阻塞）
+
+`peerDependencies` 里的 `@deepseek-ai/dsh-llm` 原本是 `^0.2.0-rc.2`，而它**不接受 `0.2.1-rc.2`**：
+semver 里预发布版本只能被「点名了同一个 `[major, minor, patch]` 三元组」的区间接受，
+`0.2.1-rc.2` 与 `0.2.0-rc.2` 不是同一个三元组（实测 `satisfies('0.2.1-rc.2', '^0.2.0-rc.2') === false`）。
+接缝全是好的，但强制 peer 的插件管理器会因此把安装/激活判成「与宿主不兼容」。
+
+- 区间改为 **`^0.2.0-rc.2 || ^0.2.1-rc.2`**（后续每条 rc 线都要显式加一项，不会被 `^0.2.x` 自动带入）。
+- 同时去掉 `^0.1.1-rc.2` / `^0.1.7-rc.1`：那两条是历史声明，当前代码没有在 0.1.x 上验过；
+  留着等于宣称一种没人测过的兼容。
 
 ### 新增
 
-- `integrations/cc-haha/peak-routing-v0.7.8.patch`：基于上游 v0.7.8 的完整二进制安全 patch。
-- `integrations/cc-haha/README.md`：源码安装、热修复、staging 校验、GATE-IDLE 切换和回滚步骤。
+- `scripts/host-compat.test.mjs`：把「声明的区间必须接受已实测宿主、且必须排除相邻 rc 线与大版本」
+  钉成回归测试，并**自带反控**（先断言 `^0.2.0-rc.2` 拒绝 `0.2.1-rc.2`，证明检查器不是恒真）。
+  已接进 `npm test` 与 `npm run verify`。
 
-### 说明
+### 顺带观察（未改，留档）
 
-- DSH 插件与 CC-HAHA patch 是两个运行端；CC-HAHA 不使用 DSH 插件钩子。
-- 生产生效仍需对应主机的 GATE-IDLE 与独立部署验收。
-
-## [0.13.0] - 2026-11-15
-
-**多端补全 + 市场元数据**：窄屏也能切全局默认，节假日/时区可以在 GUI 里改，安装有可复制的索引与一键命令。
-
-### 新增
-
-- **设置页顶部「全局默认」开关**：与侧边栏 footer、composer 入口共用同一份 store。窄屏（<1024px）或 Windows/macOS 收起态下侧边栏 footer 不可达时，仍可在设置页切换全局默认；跟随全局的会话一起变化，已解耦会话不受影响。
-- **GUI 直接编辑 `holidays` / `utcOffsetMinutes`**：日期按真实日历校验（拒绝 2026-02-30），UTC 偏移限制在 -720…840；非法输入阻止保存。
-- **首次安装引导**：`policy.json` 尚不存在时，设置页显示三步引导（确认全局开关、配置模型、保存）。
-- **市场元数据**：`package.json` 增加 `engines.dsh`、`keywords`、`homepage`、`repository`、`bugs`；新增 `market/index.json`（DSH `format: 1` 索引）。
-- **兼容矩阵**：README 增加「插件版本 × DSH 宿主 × 端能力」表，明确 Web GUI / 桌面 WebView / Headless / Node-only / 窄屏的差异。
-
-### 修复
-
-- 窄屏下无法修改全局默认：此前 composer 入口只切当前会话，侧边栏 footer 又不可达；设置页顶部开关补上这个入口。
-- `parseHolidays` 只检查“是整数”，非法日期会被当作永不匹配的节假日；现在按 `Date.UTC` 往返校验。
-- `utcOffsetMinutes` 不再接受任意数值，统一夹到 -720…840。
-
-### 兼容
-
-- 已验证 DSH 0.12.0（宿主 `@deepseek-ai/dsh-*` 0.2.0-rc.2）。
-- `engines.dsh` 声明 `>=0.12.0 <0.14.0`；`policy.json` / `state.json` 字段仍向后兼容。
+手工编辑 `state.json` 时若带 UTF-8 BOM，`JSON.parse` 会抛错，插件按「关闭」静默处理
+（验证过程中踩到一次）。GUI 写出的文件没有 BOM，所以只影响手工编辑；要修的话是在解析前剥掉 BOM，
+属于独立的一件事，不混进本版。
 
 ## [0.12.0] - 2026-10-17
 
