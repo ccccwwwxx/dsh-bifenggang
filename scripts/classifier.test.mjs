@@ -424,7 +424,7 @@ check('collectFromMessages merges text blocks and flags image/file attachments',
   ])
   eq(signals.text, 'one\ntwo\nthree', 'merged text')
   eq([signals.hasImage, signals.hasFile], [true, true], 'attachment flags')
-  eq(collectFromMessages(undefined), { text: '', hasImage: false, hasFile: false, taskIds: [] }, 'tolerates non-arrays')
+  eq(collectFromMessages(undefined), { text: '', hasImage: false, hasFile: false, taskIds: [], declarations: [] }, 'tolerates non-arrays')
 })
 
 for (const [name, fn] of checks) {

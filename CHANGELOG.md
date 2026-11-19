@@ -1,486 +1,497 @@
-﻿# 鏇存柊鏃ュ織 / Changelog
+# 更新日志 / Changelog
 
-鏈枃浠惰褰曟墍鏈夊€煎緱娉ㄦ剰鐨勫彉鏇淬€傜増鏈彿閬靛惊 [SemVer](https://semver.org/lang/zh-CN/)锛歚MAJOR.MINOR.PATCH`銆?
+本文件记录所有值得注意的变更。版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)：`MAJOR.MINOR.PATCH`。
 
-**鐗堟湰鍙峰彧鏈変竴涓潵婧愶細`package.json`銆?* 杩愯鏃跺彲鍦ㄤ袱澶勭‘璁ゅ綋鍓嶅姞杞界殑鏄摢涓€鐗堬細
+**版本号只有一个来源：`package.json`。** 运行时可在两处确认当前加载的是哪一版：
 
-- 璁剧疆 鈫?閬垮嘲宀楋紝鏍囬涓嬫柟鐨?`鐗堟湰 vX.Y.Z`锛?
-- `debug.log` 涓瘡娆″姞杞芥彃浠舵椂鐨勯偅涓€琛岋細`apply: vX.Y.Z, enabled=鈥銆?
-  锛坄DSH_HOME/plugins/dsh-peak-valley-router/debug.log`锛?
+- 设置 → 避峰岗，标题下方的 `版本 vX.Y.Z`；
+- `debug.log` 中每次加载插件时的那一行：`apply: vX.Y.Z, enabled=…`。
+  （`DSH_HOME/plugins/dsh-peak-valley-router/debug.log`）
 
-## 鐗堟湰绛栫暐锛坧re-1.0锛?
+## 版本策略（pre-1.0）
 
-褰撳墠澶勪簬 **0.x**锛氬姛鑳戒笌鐣岄潰宸插彲鐢紝浣?*璺敱璇箟銆佽缃〉甯冨眬銆佸唴閮ㄦ帴缂濓紙`agent/request` / `internal/get`锛変粛鍙兘鍦ㄥ皬鐗堟湰涔嬮棿璋冩暣**銆?
+当前处于 **0.x**：功能与界面已可用，但**路由语义、设置页布局、内部接缝（`agent/request` / `internal/get`）仍可能在小版本之间调整**。
 
-`policy.json` / `state.json` 鐨勫瓧娈典繚鎸佸悜鍚庡吋瀹癸細鏂板瀛楁鍙拷鍔狅紝鏃ф枃浠舵棤闇€杩佺Щ锛涘巻鍙蹭笂鍐欏嚭鐨勫祵濂?`peak.model` 鍐欐硶浠嶇劧鍙銆?
+`policy.json` / `state.json` 的字段保持向后兼容：新增字段只追加，旧文件无需迁移；历史上写出的嵌套 `peak.model` 写法仍然可读。
 
-**1.0 鐨勬潯浠?*锛氳矾鐢辫涔変笌閰嶇疆鏍煎紡鍐荤粨锛屽苟缁忚繃鑻ュ共涓増鏈殑瀹為檯浣跨敤銆傚湪閭ｄ箣鍓嶇殑鐮村潖鎬у彉鏇翠細鍐欏湪涓嬮潰銆?
+**1.0 的条件**：路由语义与配置格式冻结，并经过若干个版本的实际使用。在那之前的破坏性变更会写在下面。
+
+## [0.17.7] - 2026-11-20
+
+**按主控声明路由**：任务记录里的 `judgement` 取代文本评分。
+
+- `execute` → 低档（沿用峰谷策略；命令失败本身不升档）
+- `coverage` → 中档（Sol High）
+- `adjudicate` → 高档（Astra Max）
+
+优先级：单 Session 显式覆盖 > 声明 > 文本评分；旧任务无声明时仍按任务文本评分。
+决策记录 `tierReason=declared:<judgement>` 与 `scoreSource=declared:<taskId>:<judgement>`，
+便于发现派单标错。
 
 ## [0.17.6] - 2026-11-20
 
 **新成员首单按派单任务评分**：宿主自己生成子会话的第一条提示，任务记录无法挂在它上面，
-现由 member-started 事件（payload.task）携带，路由器按会话缓存并在该会话的第一次决策消费（只消费一次）。
-已有成员续单继续使用消息 source 上的 gentTeamsTask。
+改由 `member-started` 事件（`payload.task`）携带，路由器按会话缓存并在该会话的第一次决策
+消费（只消费一次）。已有成员续单继续使用消息 source 上的 `agentTeamsTask`。
 
 ## [0.17.5] - 2026-11-20
 
-**姝ｅ紡娲惧崟鎸変换鍔¤褰曡瘎鍒?*锛氭。浣嶄笉鍐嶈娲惧崟淇″皝锛堜綔涓氳鏄?+ 璐ㄩ噺濂戠害 + 楠屾敹娓呭崟锛夌█閲娿€?
+**正式派单按任务记录评分**：档位不再被派单信封（作业说明 + 质量契约 + 验收清单）稀释。
 
-### 鍙樻洿
+### 变更
 
-- AgentTeams 鍦ㄦ淳鍗曟秷鎭殑 `source.agentTeamsTask` 涓婃惡甯?`{ taskId, subject, description }`
-  锛堟潵鑷畠鑷繁鐨勪换鍔¤褰曪級锛涙垚鍛樹粛鐒舵敹鍒板畬鏁存鏂囥€佽川閲忓绾︿笌楠屾敹瑕佹眰銆?
-- 鍒嗙被鍣ㄤ紭鍏堢敤 `subject + description` 浣滀负璇勫垎杈撳叆锛屾鏂囦笉鍐嶅弬涓庤瘎鍒嗭紱`taskId` 璁板綍鍒?
-  `lastDecision.scoreSource`锛堝舰濡?`task:t1`锛変笌 `debug.log` 鐨?`score-source:` 琛岋紝渚夸簬涓庡洟闃?
-  浠诲姟璁板綍鏍稿銆?
-- 娌℃湁璇ュ瓧娈电殑娑堟伅锛堟櫘閫氳亰澶┿€佹棫娑堟伅銆佸叾浠栨彃浠舵潵婧愶級琛屼负瀹屽叏涓嶅彉锛涘崟 Session 鏄惧紡瑕嗙洊浼樺厛绾т笉鍙樸€?
-- 鏂版垚鍛橀鍗曚篃甯﹁瀛楁锛氭淳鍗曚换鍔℃敼涓哄垱寤哄悗鍐嶄互鎴愬憳鎻愮ず鎶曢€掞紙鍒涘缓鎻愮ず淇濈暀娆㈣繋璇級锛岄伩鍏嶅涓?
-  鑷鐢熸垚鐨勫垱寤烘彁绀轰涪鎺夌粨鏋勫寲瀛楁銆?
+- AgentTeams 在派单消息的 `source.agentTeamsTask` 上携带 `{ taskId, subject, description }`
+  （来自它自己的任务记录）；成员仍然收到完整正文、质量契约与验收要求。
+- 分类器优先用 `subject + description` 作为评分输入，正文不再参与评分；`taskId` 记录到
+  `lastDecision.scoreSource`（形如 `task:t1`）与 `debug.log` 的 `score-source:` 行，便于与团队
+  任务记录核对。
+- 没有该字段的消息（普通聊天、旧消息、其他插件来源）行为完全不变；单 Session 显式覆盖优先级不变。
+- 新成员首单也带该字段：派单任务改为创建后再以成员提示投递（创建提示保留欢迎语），避免宿主
+  自行生成的创建提示丢掉结构化字段。
 
-### 楠岃瘉
+### 验证
 
-- `role-binding`锛氭淳鍗曟寜浠诲姟璁板綍璇勫垎銆佹帓闃熸秷鎭悇鑷嫭绔嬩笉涓插崟銆佹棤浠诲姟璁板綍鐨勬秷鎭繚鎸佸師琛屼负銆?
-- 鍓嶅悗鍥炴斁锛氬悓涓€鎻忚堪浣滀负瑁告枃鏈?0.73锛堜綆妗ｏ級锛屼綔涓烘淳鍗曚俊灏?0.50锛堜腑妗ｏ級锛屾敼鍚庡洖鍒?0.73銆?
+- `role-binding`：派单按任务记录评分、排队消息各自独立不串单、无任务记录的消息保持原行为。
+- 前后回放：同一描述作为裸文本 0.73（低档），作为派单信封 0.50（中档），改后回到 0.73。
 
 ## [0.17.4] - 2026-11-20
 
-**缁窇鎴愬憳鐨勭洰褰曡繃鏈熶慨澶?*锛氱┖闂茶秴杩?TTL 鍚庯紝鎴愬憳鐨勪笅涓€鏉′换鍔′笉鍐嶆部鐢ㄦ棫妯″瀷銆?
+**续跑成员的目录过期修复**：空闲超过 TTL 后，成员的下一条任务不再沿用旧模型。
 
-### 淇
+### 修复
 
-- **keep-warm 瀹氭椂棰勭儹**锛氬惎鐢ㄦ湡闂存瘡 `MODEL_CATALOG_TTL_MS / 2`锛?0s锛夊埛鏂版ā鍨嬬洰褰曚笌 effort 缂撳瓨锛?
-  绌洪棽涓€鍒嗛挓涓嶅啀璁╃紦瀛樻濂借繃鏈燂紱杩囨湡鐬棿鍒拌揪鐨勬淳鍗曞洜姝や粛鑳芥寜瑙掕壊鐩爣閫夋嫨銆?
-- **鏈獙璇佹椂绔嬪嵆鍒锋柊**锛氭煇杞洜 `catalog-cold`/`effort-cold` 淇濈暀鏃фā鍨嬫椂锛岀珛鍒昏Е鍙戜竴娆″埛鏂帮紝
-  浣夸笅涓€鏉′换鍔¤兘鍦ㄦ湰杞姹傚墠搴旂敤瑙掕壊鐩爣銆?
-- **鍒锋柊璇锋眰鎺掗槦**锛氬埛鏂板湪閫旀椂鍒拌揪鐨勮姹備笉鍐嶈涓㈠純锛堟鍓嶄竴娆℃參鍒锋柊浼氳 adapters-updated /
-  keep-warm 鐨勫埛鏂拌鍚炴帀锛岀洰褰曚繚鎸佺┖鐨勭洿鍒颁笅涓€鍒嗛挓锛夈€?
-- 鍙敤鎬ф鏌ユ湭鏀惧锛氫粛鐒躲€屾湭楠岃瘉涓嶅垏銆嶏紝骞跺湪 `lastDecision.warningKind` / `debug.log` 璁板綍
-  鍘熷洜涓庡疄闄呬繚鐣欑殑妯″瀷銆?
+- **keep-warm 定时预热**：启用期间每 `MODEL_CATALOG_TTL_MS / 2`（30s）刷新模型目录与 effort 缓存，
+  空闲一分钟不再让缓存正好过期；过期瞬间到达的派单因此仍能按角色目标选择。
+- **未验证时立即刷新**：某轮因 `catalog-cold`/`effort-cold` 保留旧模型时，立刻触发一次刷新，
+  使下一条任务能在本轮请求前应用角色目标。
+- **刷新请求排队**：刷新在途时到达的请求不再被丢弃（此前一次慢刷新会让 adapters-updated /
+  keep-warm 的刷新被吞掉，目录保持空的直到下一分钟）。
+- 可用性检查未放宽：仍然「未验证不切」，并在 `lastDecision.warningKind` / `debug.log` 记录
+  原因与实际保留的模型。
 
-### 楠岃瘉
+### 验证
 
-- `role-binding`锛氭柊澧炩€滃喎鐩綍淇濈暀鏃фā鍨嬩笖璁板綍鍘熷洜鈥濃€滃埛鏂版垚鍔熷悗涓嬩竴鏉′换鍔″簲鐢ㄨ鑹茬洰鏍団€濅袱椤广€?
-- 81 瀹炴満锛氬悓涓€楠岃瘉鑰呬袱娆℃淳鍗曢棿闅?144 绉掞紝绗簩娆￠璇锋眰 `pre-step modelSelection=codex/gpt-6.2-astra@max expected=鈥?match=true`銆?
+- `role-binding`：新增“冷目录保留旧模型且记录原因”“刷新成功后下一条任务应用角色目标”两项。
+- 81 实机：同一验证者两次派单间隔 144 秒，第二次首请求 `pre-step modelSelection=codex/gpt-6.2-astra@max expected=… match=true`。
 
 ## [0.17.3] - 2026-11-20
 
-**缁戝畾鍙瓑寰?*锛氳棣栨潯浠诲姟鍦?*鍐峰惎鍔?*涓嬩篃鑳芥寜瑙掕壊閫夋ā銆?
+**绑定可等待**：让首条任务在**冷启动**下也能按角色选模。
 
-### 淇
+### 修复
 
-- `agent-teams/member-started` 鐨?ack 鐜板湪甯?`ready`锛圥romise锛夛細缁戝畾瑙掕壊鏃剁珛鍒婚鐑瑙掕壊鎵€鏈?
-  鐩爣锛坄target` + `tiers.*`锛夌殑妯″瀷鐩綍涓?reasoning effort銆侫gentTeams 鍦ㄥ垱寤哄瓙浼氳瘽鍓?`await`
-  杩欎釜 Promise锛堜笂闄?10s锛夛紝鎵€浠ョ涓€鏉℃秷鎭埌杈炬椂缂撳瓨宸茬粡鏄儹鐨勩€?
-- 鏍瑰洜璁板綍锛歨eadless/鍐峰惎鍔ㄦ椂 provider 閫傞厤鍣ㄥ湪 `apply` 涔嬪悗鎵嶆敞鍐岋紝棣栨娲惧崟浼氬懡涓?
-  `catalog-cold`/`effort-cold`锛岃矾鐢卞櫒鎸夋棦鏈夊畨鍏ㄧ瓥鐣ャ€屼笉鍒囥€嶁啋 棣栬疆娌跨敤鍒涘缓妯″瀷銆傝繖鏄?0.17.2
-  瀹炴満楠岃瘉閲屻€屽疄鐜拌€呰鍒?v4-pro@high銆佸疄闄?flash@high銆嶇殑鍘熷洜銆?
+- `agent-teams/member-started` 的 ack 现在带 `ready`（Promise）：绑定角色时立刻预热该角色所有
+  目标（`target` + `tiers.*`）的模型目录与 reasoning effort。AgentTeams 在创建子会话前 `await`
+  这个 Promise（上限 10s），所以第一条消息到达时缓存已经是热的。
+- 根因记录：headless/冷启动时 provider 适配器在 `apply` 之后才注册，首次派单会命中
+  `catalog-cold`/`effort-cold`，路由器按既有安全策略「不切」→ 首轮沿用创建模型。这是 0.17.2
+  实机验证里「实现者计划 v4-pro@high、实际 flash@high」的原因。
 
-### 楠岃瘉
+### 验证
 
-- `scripts/role-binding.test.mjs`锛歛ck.ready 蹇呴』鏄彲绛夊緟鐨?Promise锛堟柊澧炴柇瑷€锛夛紝鍏朵綑 12 椤归€氳繃銆?
+- `scripts/role-binding.test.mjs`：ack.ready 必须是可等待的 Promise（新增断言），其余 12 项通过。
 
 ## [0.17.2] - 2026-11-20
 
-**璇嗗埆 0.2.2-rc.5 鐨?`plugin` 鍖呰鏉ユ簮**鈥斺€旇繖鏄垚鍛樻淳鍗曚竴鐩存病琚矾鐢辩殑鐪熸鍘熷洜銆?
+**识别 0.2.2-rc.5 的 `plugin` 包装来源**——这是成员派单一直没被路由的真正原因。
 
-### 淇
+### 修复
 
-- 鏈涓伙紙0.2.2-rc.5锛夋妸鎻掍欢鍐欏叆鐨勬秷鎭瓨鎴?`{ kind: 'plugin', plugin: '<鍖呭悕>' }`銆?
-  AgentTeams 鐨勬瘡娆℃淳鍗曪紙鍚鏉′换鍔★級閮借蛋杩欎釜鍖呰锛岃€岄伩宄板矖鎶?`plugin` 褰掍负銆屾敞鍏ヤ笂涓嬫枃銆嶇洿鎺ヨ烦杩囷紝
-  鎵€浠ユ垚鍛樼殑 `inbox: decision` 鏍规湰涓嶄骇鐢熲€斺€旇鑹茬粦瀹氭垚鍔熴€佽矾鐢卞嵈娌″彂鐢熴€?
-- 鐜板湪锛歚plugin` 鏉ユ簮涓?`plugin === '@nanmicoder/dsh-agent-teams'` 瑙嗕负**鎵ц鎰忓浘**锛涘叾浠栨彃浠剁殑
-  `plugin` 娑堟伅浠嶆槸娉ㄥ叆涓婁笅鏂囷紙涓嶈矾鐢憋級銆傝繖鏄涓荤粰鍑虹殑缁撴瀯鍖栨潵婧愭爣璇嗭紝涓嶆槸瀵规彁绀鸿瘝鐨勭寽娴嬨€?
+- 本宿主（0.2.2-rc.5）把插件写入的消息存成 `{ kind: 'plugin', plugin: '<包名>' }`。
+  AgentTeams 的每次派单（含首条任务）都走这个包装，而避峰岗把 `plugin` 归为「注入上下文」直接跳过，
+  所以成员的 `inbox: decision` 根本不产生——角色绑定成功、路由却没发生。
+- 现在：`plugin` 来源且 `plugin === '@nanmicoder/dsh-agent-teams'` 视为**执行意图**；其他插件的
+  `plugin` 消息仍是注入上下文（不路由）。这是宿主给出的结构化来源标识，不是对提示词的猜测。
 
-### 楠岃瘉
+### 验证
 
-- 闅旂鍥㈤槦瀹炴満锛?1锛宲v-verify profile锛夛細鍥㈤槦鍒涘缓鎴愬姛銆佷袱鍚嶆垚鍛樼粦瀹氬埌 `瀹炵幇鑰卄/`楠岃瘉鑰卄 瑙勫垯锛?
-  淇鍓嶆垚鍛樼殑鍚庣画娲惧崟鍙湁 `pre-step` 瑙傚療銆佹棤 `inbox: decision`銆?
+- 隔离团队实机（81，pv-verify profile）：团队创建成功、两名成员绑定到 `实现者`/`验证者` 规则；
+  修复前成员的后续派单只有 `pre-step` 观察、无 `inbox: decision`。
 
 ## [0.17.1] - 2026-11-20
 
-**瑙掕壊缁戝畾鏀瑰埌銆屽垱寤轰箣鍓嶃€?*锛氫慨澶嶉娆℃淳鍗曟椂瑙掕壊鍙兘灏氭湭鐢熸晥鐨勯棶棰樸€?
+**角色绑定改到「创建之前」**：修复首次派单时角色可能尚未生效的问题。
 
-### 淇
+### 修复
 
-- **缁戝畾鍏堜簬鍒涘缓**锛欰gentTeams 鐜板湪鍏堥鐣?child id 骞跺悓姝ュ彂 `agent-teams/member-started`锛屽啀璋冪敤
-  瀛愪細璇濆垱寤恒€傚洜姝ゆ垚鍛樼殑绗竴鏉℃秷鎭紙**鍙兘鐩存帴灏辨槸浠诲姟姝ｆ枃**锛夎繘鍏?inbox 鏃惰鑹插凡缁忓湪 state 閲岋紝
-  鎸夎鑹茶鍒欓€夋ā鎴愮珛锛涗笉鍐嶄緷璧栥€岀涓€鏉℃秷鎭竴瀹氭槸娆㈣繋璇€嶇殑椤哄簭鍋囪銆?
-- **绉婚櫎銆岃烦杩囬鏉℃秷鎭€嶇殑寤惰繜鍚彂**锛?.17.0 浼氫负姣忎釜鏂板瓙浼氳瘽璺宠繃涓€娆¤矾鐢憋紝鑻ラ鏉℃秷鎭槸浠诲姟灏变細
-  浠ュ垱寤烘ā鍨嬫墽琛岋紱鍚屾椂鏅€氬瓙浼氳瘽涔熻璇烦杩囦竴娆°€傜幇鍦ㄦ病鏈変换浣曡烦杩囬€昏緫銆?
-- **鎴愬憳鎭㈠**锛氬喎鍚姩鎭㈠鏃?AgentTeams 浼氬啀娆″箍鎾悓涓€瑙掕壊锛岀粦瀹氬箓绛夛紙涓嶆柊澧炴潯鐩€佷笉娓呰鐩栵級锛?
-  姣忎釜鏂颁换鍔￠噸鏂板垎绾ч€夋ā鈥斺€斿悓涓€楠岃瘉鑰呭彲浠ヤ粠 mid锛圫ol High锛夊垏鍒?high锛圓stra Max锛夈€?
-- **鏅€氬瓙浼氳瘽**锛氭病鏈夌粦瀹氳鑹茬殑瀛愪細璇濆畬鍏ㄨ蛋鍘熷嘲璋风瓥鐣ワ紙0.17.0 鐨?pending 璺宠繃宸插垹闄わ級銆?
+- **绑定先于创建**：AgentTeams 现在先预留 child id 并同步发 `agent-teams/member-started`，再调用
+  子会话创建。因此成员的第一条消息（**可能直接就是任务正文**）进入 inbox 时角色已经在 state 里，
+  按角色规则选模成立；不再依赖「第一条消息一定是欢迎语」的顺序假设。
+- **移除「跳过首条消息」的延迟启发**：0.17.0 会为每个新子会话跳过一次路由，若首条消息是任务就会
+  以创建模型执行；同时普通子会话也被误跳过一次。现在没有任何跳过逻辑。
+- **成员恢复**：冷启动恢复时 AgentTeams 会再次广播同一角色，绑定幂等（不新增条目、不清覆盖），
+  每个新任务重新分级选模——同一验证者可以从 mid（Sol High）切到 high（Astra Max）。
+- **普通子会话**：没有绑定角色的子会话完全走原峰谷策略（0.17.0 的 pending 跳过已删除）。
 
-### 楠岃瘉
+### 验证
 
-- `scripts/role-binding.test.mjs`锛?0 椤癸級锛氶鏉℃秷鎭嵆浠诲姟銆佹仮澶嶅悗 mid鈫抙igh銆佹櫘閫氬瓙浼氳瘽銆佹樉寮忚鐩栥€?
-  閲嶅惎鎸佷箙鍖栥€佺粦瀹氬け璐ュ彲瑙併€?
+- `scripts/role-binding.test.mjs`（10 项）：首条消息即任务、恢复后 mid→high、普通子会话、显式覆盖、
+  重启持久化、绑定失败可见。
 
 ## [0.17.0] - 2026-11-20
 
-**瑙掕壊瑙勫垯锛坮oleRules锛? 鎴愬憳瑙掕壊缁戝畾**銆傜敤浜?AgentTeams锛氶獙璇佽€?瀹炵幇鑰呰繖绫诲洟闃熻鑹蹭笉鍐嶈
-涓夋。宄拌胺琛ㄩ殢鏈烘敼妯″瀷锛屽悓鏃舵櫘閫氫細璇濆畬鍏ㄤ笉鍙楀奖鍝嶃€?
+**角色规则（roleRules）+ 成员角色绑定**。用于 AgentTeams：验证者/实现者这类团队角色不再被
+三档峰谷表随机改模型，同时普通会话完全不受影响。
 
-### 鍔熻兘
+### 功能
 
-- **policy v2 `roleRules`**锛堥粯璁?`[]`锛夛細姣忔潯瑙勫垯鎸?`name`锛? `match` 鍒悕锛夊尮閰嶄細璇濊鑹诧紝涓夌褰㈡€侊細
-  - `target`锛氭瘡杞浐瀹氭ā鍨嬶紙渚嬶細瀹炵幇鑰?鈫?`deepseek-official/deepseek-v4-pro@high`锛夛紱
-  - `tiers.{low,mid,high}`锛氭寜妗ｄ綅鍒嗗埆鎸囧畾锛?*鏈垪鍑虹殑妗ｄ綅鍥炶惤鍒板師宄拌胺绛栫暐**
-    锛堜緥锛氶獙璇佽€?mid 鈫?`codex/gpt-6.2-sol@high`銆乭igh 鈫?`codex/gpt-6.2-astra@max`锛宭ow 浠嶈蛋宄拌胺锛夛紱
-  - `decouple: true`锛氬畬鍏ㄤ笉骞查璇ヤ細璇濓紙鎴愬憳鐢ㄨ嚜宸辩殑鍥㈤槦妯″瀷锛夈€?
-- **浼樺厛绾?*锛氬崟 Session 鏄惧紡瑕嗙洊锛坄sessions[id]`锛? 瑙掕壊瑙勫垯 > 鍏ㄥ眬宄拌胺锛涘叧闂叏灞€寮€鍏虫椂瑙掕壊瑙勫垯鍚屾牱涓嶇敓鏁堛€?
-- **state v2 `roles`**锛歚sessionId -> 瑙掕壊鍚峘锛屽惈 `rolesUpdatedAt` 涓?*鐙珛** `roleTombstones`
-  锛堟竻瑙掕壊涓嶄細璇竻浼氳瘽寮€鍏筹級锛岄€愰敭杈冩柊鍚堝苟銆佷笂闄愭窐姹般€侀噸鍚悗浠嶆湁鏁堛€?
-- **缁戝畾鏃跺簭**锛堝叧閿級锛歚subagent/start`锛堝悓姝ワ紝鏃╀簬棣栨潯娑堟伅锛夋爣璁般€屾垚鍛樺緟缁戝畾銆嶁啋 璇ユ垚鍛樼殑
-  **娆㈣繋娑堟伅涓嶈矾鐢?*锛堟部鐢ㄥ垱寤烘椂鐨勬ā鍨嬶級鈫?AgentTeams 鍦ㄦ嬁鍒?`childId` 鍚庡悓姝?emit
-  `agent-teams/member-started {teamId, sessionId, name, role}` 鈫?璺敱钀藉簱銆傚洜姝?*绗竴鏉℃寮忎换鍔?
-  娑堟伅涔嬪墠**缁戝畾涓€瀹氬畬鎴愶紝涓斾笉渚濊禆浠讳綍鍥哄畾寤舵椂銆?
-- **缁戝畾澶辫触鍙**锛歟mit 甯﹀彲鍙?ack 瀵硅薄锛岀洃鍚柟鍚屾濉啓 `{ok, reason}`锛涙湭缁戝畾/鏃犺鑹?鏃犲尮閰嶈鍒?
-  鍒嗗埆鏄?`missing-session-id` / `no-role` / `no-matching-rule`锛屽苟鍐欏叆 `debug.log`銆?
-- **RPC**锛歚get.roles`銆乣setRole`锛堣繑鍥炲懡涓鍒欙紝渚涙搷浣滆€呮煡璇㈠綋鍓嶇敓鏁堣鍒欙級銆?
-- **effort 棰勭儹**锛氳鑹茶鍒欑殑 `target`/`tiers` 鐩爣涔熶細棰勭儹 `resolveModelInfo`锛岄伩鍏嶉鏉℃秷鎭?
-  鍥?`effort-cold` 淇濈暀鏃фā鍨嬶紙鐪嬭捣鏉ュ儚瑙勫垯娌＄敓鏁堬級銆?
+- **policy v2 `roleRules`**（默认 `[]`）：每条规则按 `name`（+ `match` 别名）匹配会话角色，三种形态：
+  - `target`：每轮固定模型（例：实现者 → `deepseek-official/deepseek-v4-pro@high`）；
+  - `tiers.{low,mid,high}`：按档位分别指定，**未列出的档位回落到原峰谷策略**
+    （例：验证者 mid → `codex/gpt-6.2-sol@high`、high → `codex/gpt-6.2-astra@max`，low 仍走峰谷）；
+  - `decouple: true`：完全不干预该会话（成员用自己的团队模型）。
+- **优先级**：单 Session 显式覆盖（`sessions[id]`）> 角色规则 > 全局峰谷；关闭全局开关时角色规则同样不生效。
+- **state v2 `roles`**：`sessionId -> 角色名`，含 `rolesUpdatedAt` 与**独立** `roleTombstones`
+  （清角色不会误清会话开关），逐键较新合并、上限淘汰、重启后仍有效。
+- **绑定时序**（关键）：`subagent/start`（同步，早于首条消息）标记「成员待绑定」→ 该成员的
+  **欢迎消息不路由**（沿用创建时的模型）→ AgentTeams 在拿到 `childId` 后同步 emit
+  `agent-teams/member-started {teamId, sessionId, name, role}` → 路由落库。因此**第一条正式任务
+  消息之前**绑定一定完成，且不依赖任何固定延时。
+- **绑定失败可见**：emit 带可变 ack 对象，监听方同步填写 `{ok, reason}`；未绑定/无角色/无匹配规则
+  分别是 `missing-session-id` / `no-role` / `no-matching-rule`，并写入 `debug.log`。
+- **RPC**：`get.roles`、`setRole`（返回命中规则，供操作者查询当前生效规则）。
+- **effort 预热**：角色规则的 `target`/`tiers` 目标也会预热 `resolveModelInfo`，避免首条消息
+  因 `effort-cold` 保留旧模型（看起来像规则没生效）。
 
-### 鍏煎 / 宸茬煡杈圭晫
+### 兼容 / 已知边界
 
-- `schemaVersion` 浠嶄负 2锛涙棫 `policy.json` 鏃?`roleRules` 鏃惰涓哄畬鍏ㄤ笉鍙橈紙榛樿绌鸿鍒欙級銆?
-- 鑷姩缁戝畾渚濊禆 AgentTeams 渚цˉ涓?`dsh-agent-teams` 0.1.32-pv.1锛堟湰鍦板垎鏀紝浠呮柊澧炰竴鏉?
-  `member-started` 閫氱煡锛涙湭鎵撹ˉ涓佹椂缁戝畾浜嬩欢涓嶄細鍒拌揪锛岃鑹茶鍒欎笉浼氳瑙﹀彂锛屽叾浣欏姛鑳芥甯革級銆?
-- 娆㈣繋娑堟伅涓嶈矾鐢辨槸**鏈夋剰鐨?*锛氭鏃惰鑹插皻鏈粦瀹氾紝鎸夋垚鍛樺垱寤烘ā鍨嬭繍琛屾渶瀹夊叏銆?
+- `schemaVersion` 仍为 2；旧 `policy.json` 无 `roleRules` 时行为完全不变（默认空规则）。
+- 自动绑定依赖 AgentTeams 侧补丁 `dsh-agent-teams` 0.1.32-pv.1（本地分支，仅新增一条
+  `member-started` 通知；未打补丁时绑定事件不会到达，角色规则不会被触发，其余功能正常）。
+- 欢迎消息不路由是**有意的**：此时角色尚未绑定，按成员创建模型运行最安全。
 
 ## [0.16.1] - 2026-11-19
 
-**瀛愭櫤鑳戒綋璺敱淇 + 鑺傛棩鏍￠獙/UTC 閽冲埗 + 棣栧惎寮曞 + `get.firstRun`**銆?
+**子智能体路由修复 + 节日校验/UTC 钳制 + 首启引导 + `get.firstRun`**。
 
-### 淇
+### 修复
 
-- **瀛愭櫤鑳戒綋璺敱锛堟湰娆℃渶瀹炶川鐨勮涓轰慨澶嶏級**锛氭櫘閫?subagent 鐨勬秷鎭竴鐩存寜 `user` source 鍙備笌璺敱锛?
-  AgentTeams 鎴愬憳鎶曢€掔殑娑堟伅姝ゅ墠鐢?`agent-teams` source锛岃 inbox 鐨勩€屼粎 user銆嶇瓫閫夎烦杩囷紝琛ㄧ幇涓烘垚鍛樹細璇?
-  瀹屽叏涓嶈蛋閬垮嘲宀椼€?.16.1 鎶?`agent-teams` 绾冲叆鐢ㄦ埛鎰忓浘锛?*鎴愬憳浼氳瘽鐜板湪涔熶細浜х敓
-  `inbox: decision 鈫?inbox: select 鈫?pre-step: 鈥?match=true` 骞舵寜绛栫暐璺敱**銆?
-  - 鐢ㄦ埛鎰忓浘 source锛歚user`銆乣agent-teams`銆?
-  - 鏄庣‘鎺掗櫎鐨勬敞鍏ョ被锛歚system-prompt`銆乣runtime-context`銆乣model-selection`銆乣subagent-settled`銆乣plugin`銆?
-  - 鏈煡 source锛氳烦杩囪矾鐢憋紝骞惰涓€琛?`source-kind:<kind>` 闄愭祦鏃ュ織锛屼究浜庝互鍚庢墿灞曘€?
-  - 鍒嗙骇鍓嶅墺绂婚琛屾姇閫掑墠缂€ `AgentTeams message from 鈥?` / `Agent <id> sent a message:`锛堝彧鍋氬垎绫婚澶勭悊锛?
-    闃堝€?鏉冮噸鏈姩锛夈€?
+- **子智能体路由（本次最实质的行为修复）**：普通 subagent 的消息一直按 `user` source 参与路由；
+  AgentTeams 成员投递的消息此前用 `agent-teams` source，被 inbox 的「仅 user」筛选跳过，表现为成员会话
+  完全不走避峰岗。0.16.1 把 `agent-teams` 纳入用户意图，**成员会话现在也会产生
+  `inbox: decision → inbox: select → pre-step: … match=true` 并按策略路由**。
+  - 用户意图 source：`user`、`agent-teams`。
+  - 明确排除的注入类：`system-prompt`、`runtime-context`、`model-selection`、`subagent-settled`、`plugin`。
+  - 未知 source：跳过路由，并记一行 `source-kind:<kind>` 限流日志，便于以后扩展。
+  - 分级前剥离首行投递前缀 `AgentTeams message from …:` / `Agent <id> sent a message:`（只做分类预处理，
+    阈值/权重未动）。
 
-### 鑺傛棩鏍￠獙 / 鏃跺尯閽冲埗
+### 节日校验 / 时区钳制
 
-- **鑺傛棩鏃ユ湡鍚堟硶鎬ф牎楠?*锛氬悎娉曡寖鍥?**1970鈥?100**锛坄Date.UTC` 鍥炶鏍￠獙鐪熷疄鏃ュ巻鏃ワ級銆傝繖鏄?*琛屼负鍙樻洿**锛?
-  2000 骞翠互鍓嶇殑鍚堟硶鏃ユ湡鐜板湪浼氶€氳繃锛堟棫瀹炵幇涓嬮檺涓?2000锛夈€?
-- 闈炴硶鏃ユ湡锛堝 2026-02-30銆?027-02-29锛変笉鍐嶈鏁翠唤閰嶇疆鎶ラ敊锛岃€屾槸閫愭潯涓㈠純骞惰鏁帮紱`get.warnings` 鍑虹幇
-  info 绾?`invalid-holidays`锛坄extraCount=N`銆佸悓 key 闄愭祦锛夛紝淇濆瓨鍚堟硶鍒楄〃鍚庤嚜鍔ㄦ竻闄ゃ€傞厤缃叾浣欓儴鍒嗙収甯稿彲鐢ㄣ€?
-- **UTC 鍋忕Щ閽冲埗**锛歚utcOffsetMinutes` 闈炴暟瀛?缂哄け鍥為粯璁?480锛涘叾浣欏洓鑸嶄簲鍏ュ悗澶瑰埌 **[-720, 840]**銆?
+- **节日日期合法性校验**：合法范围 **1970–2100**（`Date.UTC` 回读校验真实日历日）。这是**行为变更**：
+  2000 年以前的合法日期现在会通过（旧实现下限为 2000）。
+- 非法日期（如 2026-02-30、2027-02-29）不再让整份配置报错，而是逐条丢弃并计数；`get.warnings` 出现
+  info 级 `invalid-holidays`（`extraCount=N`、同 key 限流），保存合法列表后自动清除。配置其余部分照常可用。
+- **UTC 偏移钳制**：`utcOffsetMinutes` 非数字/缺失回默认 480；其余四舍五入后夹到 **[-720, 840]**。
 
-### 棣栧惎寮曞
+### 首启引导
 
-- **璁剧疆椤甸鍚紩瀵硷紙first-run guide锛?*锛氶潪寮圭獥銆佸彲鍏抽棴銆佷笉闃诲淇濆瓨鐨勫紩瀵兼潯锛岃鏄庛€岄粯璁ゅ叧闂渶鎵嬪姩寮€鍚?/
-  涓夋。鍚箟涓庨粯璁ゅ叡鐢ㄤ綆妗?/ 姣忔。宄拌胺琛ㄤ笌鑺傚亣鏃ュ湪鍝€嶏紱淇濆瓨涓€娆″悗涓嶅啀鍑虹幇銆?
-- **`get.firstRun`锛堟柊瀛楁锛屽竷灏旓級**锛氬惎鍔ㄦ椂 `policy.json` 涓嶅瓨鍦?鈫?`true`锛涘瓨鍦紙v1 鎴?v2锛屽惈杩佺Щ鏂囦欢锛?
-  鈫?`false`锛涙湰杩涚▼ `set` 鎴愬姛鍚庣疆 `false`锛堟牎楠屽け璐?鍐欑洏澶辫触淇濇寔 `true`锛夈€傝缃〉浼樺厛璇昏瀛楁锛岀己澶辨椂
-  鍥為€€ `configRevision <= 1` 鎺ㄦ柇骞剁敤 `legacy` 鎺掗櫎 v1 鑰佺敤鎴枫€?
+- **设置页首启引导（first-run guide）**：非弹窗、可关闭、不阻塞保存的引导条，说明「默认关闭需手动开启 /
+  三档含义与默认共用低档 / 每档峰谷表与节假日在哪」；保存一次后不再出现。
+- **`get.firstRun`（新字段，布尔）**：启动时 `policy.json` 不存在 → `true`；存在（v1 或 v2，含迁移文件）
+  → `false`；本进程 `set` 成功后置 `false`（校验失败/写盘失败保持 `true`）。设置页优先读该字段，缺失时
+  回退 `configRevision <= 1` 推断并用 `legacy` 排除 v1 老用户。
 
-### 鍏煎 / 宸茬煡杈圭晫
+### 兼容 / 已知边界
 
-- `schemaVersion` 浠嶄负 2锛泇1 `strategies` 鑷姩杩佺Щ閫昏緫鏈彉锛沗peerDependencies` 鏈彉銆?
-- `plugin` source 浠嶈涓恒€屽凡鐭ラ潪鎰忓浘銆嶏細released-format 瀹夸富涓婄殑 AgentTeams 鍖呰娑堟伅涓嶄細瑙﹀彂璺敱锛?
-  鏈鍙壙璇哄綋鍓嶆闈㈢鐨?`agent-teams` source銆?
-- **澶栭儴杩涚▼鍒涘缓 policy.json 鐨勮竟鐣?*锛氳繘绋嬪惎鍔ㄥ悗鎵嶇敱澶栭儴杩涚▼鍒涘缓 policy.json 鏃讹紝`firstRun` 鍦ㄦ湰杩涚▼
-  鎴愬姛淇濆瓨涓€娆′箣鍓嶄粛涓?`true`锛堜笉褰卞搷寮曞鍏抽棴鍚庣殑琛屼负锛夈€?
-- 鑺傛棩鏍￠獙鍙牎楠屾棩鏈熸槸鍚︿负鐪熷疄鏃ュ巻鏃ワ紝涓嶆牎楠屻€屾槸鍚﹁惤鍦ㄥ凡閰嶇疆鐨勫嘲鏃舵槦鏈熴€嶃€?
+- `schemaVersion` 仍为 2；v1 `strategies` 自动迁移逻辑未变；`peerDependencies` 未变。
+- `plugin` source 仍视为「已知非意图」：released-format 宿主上的 AgentTeams 包装消息不会触发路由；
+  本次只承诺当前桌面端的 `agent-teams` source。
+- **外部进程创建 policy.json 的边界**：进程启动后才由外部进程创建 policy.json 时，`firstRun` 在本进程
+  成功保存一次之前仍为 `true`（不影响引导关闭后的行为）。
+- 节日校验只校验日期是否为真实日历日，不校验「是否落在已配置的峰时星期」。
 
 ## [0.16.0] - 2026-11-19
 
-**鏅鸿兘绋嬪害璺敱锛堥粯璁ゅ叧闂級+ 涓夋。宄拌胺琛?+ 鍙鍛婅 + 璺ㄧ獥鍙ｇ姸鎬佸悓姝?*銆?
-0.15 鐨勫崟绛栫暐閰嶇疆鑷姩杩佺Щ涓?v2 `targets.low`锛堟棫绛栫暐鍙蹇収淇濈暀鍦?`legacy`锛夛紱鏃ф枃浠舵棤闇€鎵嬪伐杩佺Щ銆?
+**智能程度路由（默认关闭）+ 三档峰谷表 + 可见告警 + 跨窗口状态同步**。
+0.15 的单策略配置自动迁移为 v2 `targets.low`（旧策略只读快照保留在 `legacy`）；旧文件无需手工迁移。
 
-### 鍘嗗彶鏁村悎
+### 历史整合
 
-鏈増寤虹珛鍦?`origin/master` 涔嬩笂锛屽巻鍙蹭笌鍘?0.14.x/0.15 绾垮悎骞朵负涓€鏉＄嚎鎬у巻鍙诧紙鏃х嚎淇濈暀鍦ㄥ垎鏀?`backup/pre-rebase-016` 涓庢爣绛?`v0.14.0` / `v0.14.1` / `v0.15.0`锛夈€?
-杩滅 0.13.x 绾跨殑 `integrations/cc-haha/` 涓?`market/` 鍏冩暟鎹?*瀹屾暣淇濈暀**锛涘叾鍙﹀鍥涢」鐗规€э紙鑺傛棩鏃ユ湡鍚堟硶鎬ф牎楠屻€乁TC 鍋忕Щ閽冲埗銆侀娆′娇鐢ㄥ紩瀵笺€乵arket 鐗堟湰鍙凤級灏氭湭骞跺叆锛岃鍒掑湪 0.16.1 琛ラ綈锛堣 `docs/RELEASE_0.16.0_CHECKLIST.md` 鏈熬鐨勫緟鍔烇級銆俙scripts/roundtrip.test.mjs` 宸茬敱 `config-v2.test.mjs` + `migrate-v1.test.mjs` 鍙栦唬銆?
+本版建立在 `origin/master` 之上，历史与原 0.14.x/0.15 线合并为一条线性历史（旧线保留在分支 `backup/pre-rebase-016` 与标签 `v0.14.0` / `v0.14.1` / `v0.15.0`）。
+远端 0.13.x 线的 `integrations/cc-haha/` 与 `market/` 元数据**完整保留**；其另外四项特性（节日日期合法性校验、UTC 偏移钳制、首次使用引导、market 版本号）尚未并入，计划在 0.16.1 补齐（见 `docs/RELEASE_0.16.0_CHECKLIST.md` 末尾的待办）。`scripts/roundtrip.test.mjs` 已由 `config-v2.test.mjs` + `migrate-v1.test.mjs` 取代。
 
-### 鍔熻兘
+### 功能
 
-- **鏅鸿兘绋嬪害璺敱锛堥粯璁ゅ叧闂紝闇€鎵嬪姩寮€鍚級**锛歚tierRouting.enabled=false` 鏃舵亽鐢ㄤ綆妗ｏ紝琛屼负涓?0.15 涓€鑷达紱寮€鍚悗鎸夋秷鎭殑鍏疯薄绋嬪害鍒嗕笁妗ｂ€斺€旀娊璞♀啋楂樸€佷腑绛夆啋涓€佸叿璞℃墽琛屸啋浣庛€傞槇鍊煎彲缂栬緫锛坄concreteThreshold` 榛樿 0.55銆乣mediumThreshold` 榛樿 0.28锛夛紝甯?10 鍒嗛挓杩熸粸涓庢樉寮?override锛坰afety / low-explicit / high-explicit锛夛紱绌烘枃鏈?绾浘鐗囧洖閫€浣庢。銆傝缃〉鎻愪緵鏍蜂緥璇曠畻锛坄probe` RPC锛屽彧璇讳笉钀界洏锛変笌涓ら槇鍊肩紪杈戙€?
-- **鎴愭湰鍐崇瓥璺敱锛堟瘡妗ｇ嫭绔嬶紝榛樿寮€锛?*锛歚targets.<tier>.costRouting` 涓?true 鏃惰妗ｅ湪宄版椂绐楀彛浣跨敤宄版椂鐩爣锛宖alse 鏃舵亽鐢ㄨ胺鏃讹紱low/mid/high 榛樿閮藉紑锛屾瘡妗ｅ彲鍗曠嫭鍏抽棴銆?
-- **姣忔。鍚勮嚜鐨勫嘲璋疯〃**锛歚targets.low` 鐙珛锛沗targets.mid` / `targets.high` 榛樿 `{ share: 'low' }` 璺熼殢浣庢。鏁村紶琛紝鍙栨秷璺熼殢鍚庡彲鐙珛閰嶇疆璋锋椂妯″瀷銆佸嘲鏃跺紑鍏?鏄熸湡/绐楀彛/宄版椂妯″瀷銆?
-- **宄拌胺绐楀彛涓庤妭鍋囨棩鍙紪杈?*锛氳缃〉鏀寔鏃跺尯鍋忕Щ銆佽妭鍋囨棩澧炲垹锛堟寜骞村垎缁勩€佸唴缃?2025/2026/2027 鏁村勾棰勮锛夛紱宄版椂绐楀彛蹇呴』 start < end 涓斾笉璺ㄥ崍澶滐紝闈炴硶杈撳叆灏卞湴鎶ラ敊銆?
-- **鐩爣涓嶅彲璺敱鏃跺彲瑙佸憡璀?*锛歚get.warnings[]`锛堢孩/榛勫垎绾с€佷笂闄?20锛変笌 `recentWarnings[]`锛堝惈 cleared 鍘嗗彶銆佷笂闄?50锛夛紱涓嶅彲鐢ㄧ洰鏍囧洖閫€骞跺憡璀︼紝涓嶅啀闈欓粯銆倂1 澶氱瓥鐣ヨ縼绉讳骇鐢?`legacy-extra-strategies` 鎻愮ず銆?
-- **璺ㄧ獥鍙?/ 澶氳繘绋嬬姸鎬佸悓姝?*锛歚state.json` v2 甯?`revision`銆佸悇閿?`*UpdatedAt`銆乣tombstones`銆乣applied`銆乣restore`銆乣restorePending`锛涢攣 + 鍘熷瓙鍐?+ 閫愰敭杈冩柊鍚堝苟銆俙set` 鏀寔 `expectedRevision` 涔愯骞跺彂锛屽啿绐佽繑鍥?`stale-revision`锛涜缃〉鍙鏃?3 绉掕疆璇€?
+- **智能程度路由（默认关闭，需手动开启）**：`tierRouting.enabled=false` 时恒用低档，行为与 0.15 一致；开启后按消息的具象程度分三档——抽象→高、中等→中、具象执行→低。阈值可编辑（`concreteThreshold` 默认 0.55、`mediumThreshold` 默认 0.28），带 10 分钟迟滞与显式 override（safety / low-explicit / high-explicit）；空文本/纯图片回退低档。设置页提供样例试算（`probe` RPC，只读不落盘）与两阈值编辑。
+- **成本决策路由（每档独立，默认开）**：`targets.<tier>.costRouting` 为 true 时该档在峰时窗口使用峰时目标，false 时恒用谷时；low/mid/high 默认都开，每档可单独关闭。
+- **每档各自的峰谷表**：`targets.low` 独立；`targets.mid` / `targets.high` 默认 `{ share: 'low' }` 跟随低档整张表，取消跟随后可独立配置谷时模型、峰时开关/星期/窗口/峰时模型。
+- **峰谷窗口与节假日可编辑**：设置页支持时区偏移、节假日增删（按年分组、内置 2025/2026/2027 整年预设）；峰时窗口必须 start < end 且不跨午夜，非法输入就地报错。
+- **目标不可路由时可见告警**：`get.warnings[]`（红/黄分级、上限 20）与 `recentWarnings[]`（含 cleared 历史、上限 50）；不可用目标回退并告警，不再静默。v1 多策略迁移产生 `legacy-extra-strategies` 提示。
+- **跨窗口 / 多进程状态同步**：`state.json` v2 带 `revision`、各键 `*UpdatedAt`、`tombstones`、`applied`、`restore`、`restorePending`；锁 + 原子写 + 逐键较新合并。`set` 支持 `expectedRevision` 乐观并发，冲突返回 `stale-revision`；设置页可见时 3 秒轮询。
 
-### 鏂版帴缂?
+### 新接缝
 
-- 璺敱鏀瑰啓浠?`agent/request` 鏀瑰埌 `agent/inbox/inserted` 鐨?`select()`锛氬湪 step preparation **涔嬪墠**鍥哄畾妯″瀷閫夋嫨锛屾弧瓒?0.2.2-rc.1 鐨勭‖鏍￠獙锛堝湪 `agent/request` 涔嬪悗鏀?provider/model/effort 浼氭姏 `after step preparation fixed`锛夛紱`agent/request` 鏀逛负鍙瑙傛祴锛堣繑鍥?`next()` 鍚屼竴瀵硅薄锛夈€?
-- 鐪熸牳瀹炴祴锛?.2.2-rc.1 headless锛夛細`inbox: decision 鈫?inbox: select 鈫?pre-step match=true 鈫?request: observed`锛岀洰鏍団墵浼氳瘽妯″瀷涓嶅啀鎶ラ敊锛涘悓鐜 0.15.0 鍙嶅悜璇佷吉鎴愮珛锛堣 `docs/VERIFICATION_routing_v2.md`锛夈€?
+- 路由改写从 `agent/request` 改到 `agent/inbox/inserted` 的 `select()`：在 step preparation **之前**固定模型选择，满足 0.2.2-rc.1 的硬校验（在 `agent/request` 之后改 provider/model/effort 会抛 `after step preparation fixed`）；`agent/request` 改为只读观测（返回 `next()` 同一对象）。
+- 真核实测（0.2.2-rc.1 headless）：`inbox: decision → inbox: select → pre-step match=true → request: observed`，目标≠会话模型不再报错；同环境 0.15.0 反向证伪成立（见 `docs/VERIFICATION_routing_v2.md`）。
 
-### 杩佺Щ涓庡吋瀹?
+### 迁移与兼容
 
-- `schemaVersion: 1` 鐨?`strategies` 鑷姩杩佺Щ涓?v2 `targets.low`锛堝嘲鏃惰〃/鏄熸湡/绐楀彛涓€骞惰縼绉伙級锛涚 2 鏉″強浠ュ悗涓嶅啀鍙備笌璺敱锛屼絾淇濈暀鍦ㄥ彧璇?`legacy` 蹇収涓紝骞剁粰鍑?`legacy-extra-strategies` 鎻愮ず銆傛棤闇€鎵嬪伐鏀规枃浠躲€?
-- `advancedSupport` 浠嶆槸鐙珛鐨?max 杞达紙鍙湪浼氳瘽鏄惧紡瑕佹眰 `max` 鏃朵娇鐢紝涓嶄綔涓烘湭鍛戒腑鍏滃簳锛夈€?
-- `peerDependencies` 澧炲姞 `^0.2.2-rc.1`锛堝凡鍦?0.2.2-rc.1 鐪熸牳瀹炴祴锛夛紱`^0.2.0-rc.2 || ^0.2.1-rc.2` 淇濈暀銆?
-- 閰嶇疆/鐘舵€佷粛鍚戝悗鍏煎锛氭柊澧炲瓧娈靛彧杩藉姞锛涘巻鍙蹭笂鍐欏嚭鐨勫祵濂?`peak.model` 鍐欐硶浠嶅彲璇汇€?
+- `schemaVersion: 1` 的 `strategies` 自动迁移为 v2 `targets.low`（峰时表/星期/窗口一并迁移）；第 2 条及以后不再参与路由，但保留在只读 `legacy` 快照中，并给出 `legacy-extra-strategies` 提示。无需手工改文件。
+- `advancedSupport` 仍是独立的 max 轴（只在会话显式要求 `max` 时使用，不作为未命中兜底）。
+- `peerDependencies` 增加 `^0.2.2-rc.1`（已在 0.2.2-rc.1 真核实测）；`^0.2.0-rc.2 || ^0.2.1-rc.2` 保留。
+- 配置/状态仍向后兼容：新增字段只追加；历史上写出的嵌套 `peak.model` 写法仍可读。
 
-### 宸茬煡杈圭晫锛堥獙鏀跺彛寰勶級
+### 已知边界（验收口径）
 
-1. 姣忔潯琚矾鐢辨秷鎭竴娆?state.json 鍘熷瓙鍐欙紙鍚?no-op锛涘凡瀹炴祴 3 鏉℃秷鎭?revision 1鈫?锛夈€?
-2. 鍧?state.json 鏃?fail-closed锛氬紑鍏冲洖榛樿 false銆佽鍥炲悎涓嶈矾鐢憋紝鏂囦欢鍘熸牱淇濈暀涓嶆竻绌恒€?
-3. 鍐峰惎鍔ㄩ鏉℃秷鎭彲鑳藉洜鐩綍/effort 鏈儹鑰?info unverified 涓嶈矾鐢憋紝绗簩鏉￠噸璇曘€?
-4. `internal/get` 榛樿妯″瀷灞傚湪 0.2.2-rc.1 鏈璇诲彇锛屽凡闄嶇骇锛堟柊浼氳瘽棣栨潯娑堟伅涓嶅啀棰勮璺敱鐩爣锛夈€?
-5. 鍒嗙被鍣ㄤ负鍚彂寮忥紝鐩搁偦妗ｅ厑璁搁敊鍒嗭紙鍐荤粨闆?6 鏉°€佺暀鍑洪泦 3 鏉★級锛?*璺ㄦ。鍙嶆。蹇呴』涓?0**锛岃繖鏄垜浠鍙殑楠屾敹鍙ｅ緞銆?
+1. 每条被路由消息一次 state.json 原子写（含 no-op；已实测 3 条消息 revision 1→3）。
+2. 坏 state.json 时 fail-closed：开关回默认 false、该回合不路由，文件原样保留不清空。
+3. 冷启动首条消息可能因目录/effort 未热而 info unverified 不路由，第二条重试。
+4. `internal/get` 默认模型层在 0.2.2-rc.1 未被读取，已降级（新会话首条消息不再预览路由目标）。
+5. 分类器为启发式，相邻档允许错分（冻结集 6 条、留出集 3 条），**跨档反档必须为 0**，这是我们认可的验收口径。
 
-### 娴嬭瘯涓庢枃妗?
+### 测试与文档
 
-- 16 濂?node 娴嬭瘯鎺ュ叆 `npm test` / `npm run verify`锛氭柊澧?config-v2 / migrate-v1 / cost-routing / classifier / tier-routing / probe / catalog-warning / state-sync / restore / inbox-routing / request-passthrough锛沗scripts/roundtrip.test.mjs` 琚?v2 鎺ョ紳娴嬭瘯鍙栦唬骞剁Щ闄ゃ€?
-- README / SKILL 鏇存柊 v2 閰嶇疆绀轰緥涓庡凡鐭ラ檺鍒讹紱鏂板 `docs/HEADLESS_VERIFY.md`銆乣docs/VERIFICATION_routing_v2.md`銆乣docs/RELEASE_0.16.0_CHECKLIST.md`銆?
+- 16 套 node 测试接入 `npm test` / `npm run verify`：新增 config-v2 / migrate-v1 / cost-routing / classifier / tier-routing / probe / catalog-warning / state-sync / restore / inbox-routing / request-passthrough；`scripts/roundtrip.test.mjs` 被 v2 接缝测试取代并移除。
+- README / SKILL 更新 v2 配置示例与已知限制；新增 `docs/HEADLESS_VERIFY.md`、`docs/VERIFICATION_routing_v2.md`、`docs/RELEASE_0.16.0_CHECKLIST.md`。
 
 ## [0.15.0] - 2026-11-18
 
-**榛樿鍊煎垏鎹负 DeepSeek Flash fail-safe**锛氶粯璁ら厤缃笉鍐嶆妸浼氳瘽鎶煎湪 ChatGPT锛坄codex`锛夎闃呴搴︿笂銆?
+**默认值切换为 DeepSeek Flash fail-safe**：默认配置不再把会话押在 ChatGPT（`codex`）订阅额度上。
 
-- `lib/text.js` 鐨?`DEFAULTS`锛氱瓥鐣ユ敼涓?*鍏ㄥ懆**锛坄weekdays: [1..7]`锛塦deepseek-official/deepseek-flash` @ `low`锛沗peak.enabled: false`锛堝嘲鏃剁獥鍙ｄ繚鐣欎絾涓嶅弬涓庤矾鐢憋級锛沗advancedSupport` 鏀逛负 `deepseek-official/deepseek-flash` @ `max`銆?
-- 鍔ㄦ満锛欸PT 璁㈤槄棰濆害鏋鏃讹紙`usage_limit_reached` / HTTP 429锛夛紝鏃ч粯璁ゆ妸宸ヤ綔鏃ュ嘲鏃舵鍜?`max` 鎬濊€冭姹傝矾鐢卞埌 `codex`锛岃〃鐜版垚銆屼竴瑁呴伩宄板矖灏辨姤閿欍€嶃€傛柊榛樿鍦ㄨ闃呴搴︿笉鍙敤鏃朵粛鍦ㄥ畼鏂?DeepSeek Flash 涓婂伐浣滐紱銆屽嘲鏃跺垏璁㈤槄妯″瀷銆嶄粛鏄彈鏀寔鑳藉姏锛屽彧鏄渶瑕佹樉寮忓紑鍚苟鏄惧紡閰嶇疆鍓ā鍨嬨€?
-- 璺敱閫昏緫鏈敼锛坄lib/index.js` 涓嶅姩锛夛細`resolveSelectionDetailed` 浠呭湪 `peak.enabled` 涓虹湡涓斿嘲鏃剁獥鍙ｅ懡涓椂鎵嶈蛋宄版椂鍒嗘敮锛涢粯璁ら厤缃笅宸ヤ綔鏃ュ嘲鏃朵笌鍛ㄦ湯閮借В鏋愪负绛栫暐涓绘ā鍨嬶紙`reason=primary`锛夛紝宄版椂鍒嗘敮涓嶈Е鍙戙€?
-- 娴嬭瘯锛歚scripts/session-state.test.mjs` 琛?`advancedSupport` 鐨?`reasoningEffort` 鏂█锛堝疄闄呬笅鍙戝繀椤讳笌榛樿涓€鑷达級銆佹柇瑷€榛樿鐩爣蹇呴』鍏ㄩ儴鐣欏湪瀹樻柟 DeepSeek Flash锛屽苟鏂板銆岄粯璁ら厤缃湪宸ヤ綔鏃ュ嘲鏃剁獥鍙ｄ笌鍛ㄦ湯鍧囦笉瑙﹀彂宄版椂鍒嗘敮銆嶇殑鍥炲綊銆?
-- 鏂囨。锛歊EADME / SKILL 鐨勩€屽綋鍓嶇増鏈€嶄笌 SKILL 鐨勯粯璁ゆ崲鐝〃銆侀厤缃ず渚嬪悓姝ヤ负鏂伴粯璁ゃ€?
+- `lib/text.js` 的 `DEFAULTS`：策略改为**全周**（`weekdays: [1..7]`）`deepseek-official/deepseek-flash` @ `low`；`peak.enabled: false`（峰时窗口保留但不参与路由）；`advancedSupport` 改为 `deepseek-official/deepseek-flash` @ `max`。
+- 动机：GPT 订阅额度枯竭时（`usage_limit_reached` / HTTP 429），旧默认把工作日峰时段和 `max` 思考请求路由到 `codex`，表现成「一装避峰岗就报错」。新默认在订阅额度不可用时仍在官方 DeepSeek Flash 上工作；「峰时切订阅模型」仍是受支持能力，只是需要显式开启并显式配置副模型。
+- 路由逻辑未改（`lib/index.js` 不动）：`resolveSelectionDetailed` 仅在 `peak.enabled` 为真且峰时窗口命中时才走峰时分支；默认配置下工作日峰时与周末都解析为策略主模型（`reason=primary`），峰时分支不触发。
+- 测试：`scripts/session-state.test.mjs` 补 `advancedSupport` 的 `reasoningEffort` 断言（实际下发必须与默认一致）、断言默认目标必须全部留在官方 DeepSeek Flash，并新增「默认配置在工作日峰时窗口与周末均不触发峰时分支」的回归。
+- 文档：README / SKILL 的「当前版本」与 SKILL 的默认换班表、配置示例同步为新默认。
 
 ## [0.14.1] - 2026-10-28
 
-- 淇濆瓨鎴愬姛鍚庢樉绀烘槑纭殑鎴愬姛 Toast锛屽苟浠呭湪 `set` RPC 姝ｅ父杩斿洖鍚庢樉绀猴紱澶辫触鏃舵樉绀洪敊璇彁绀猴紝涓嶄細璇姤鎴愬姛銆?
-- 鍒锋柊妯″瀷鍒楄〃鎸夐挳缁х画淇濈暀锛屽苟涓庝繚瀛樼姸鎬佸弽棣堝尯鍒嗘樉绀恒€?
+- 保存成功后显示明确的成功 Toast，并仅在 `set` RPC 正常返回后显示；失败时显示错误提示，不会误报成功。
+- 刷新模型列表按钮继续保留，并与保存状态反馈区分显示。
 
 ## [0.14.0] - 2026-10-28
 
-- 璁剧疆椤垫柊澧炲父椹汇€屽埛鏂版ā鍨嬪垪琛ㄣ€嶆寜閽紝閲嶆柊璇诲彇 Provider 鍜屾ā鍨嬶紝涓嶉噸杞芥垨淇濆瓨绛栫暐锛屼笉鏀瑰彉鏈繚瀛樼紪杈戜笌褰撳墠閫夋嫨銆?
-- 鍒锋柊鏈熼棿鏄剧ず鍔犺浇鐘舵€佸苟闃绘閲嶅鐐瑰嚮锛涘け璐ュ彲閲嶈瘯骞朵繚鐣欐鍓嶇洰褰曘€傚鎴风鍚敤涓ユ牸鐩綍閿欒淇″皝锛岄伩鍏嶅皢璇锋眰澶辫触浼鎴愮┖鐩綍锛涙棫 RPC 璋冪敤淇濇寔闄嶇骇琛屼负銆?
-- 淇褰撳墠鏍稿績鍏紑 `agent.id` 韬唤涓嬬殑姣忎細璇濆紑鍏宠瘑鍒紝鍏煎鏃х殑宓屽 session 瀛楁銆?
-- 璺ㄦā鍨嬭矾鐢变笖绛栫暐鏈寚瀹氭€濊€冩。鏃讹紝涓嶅啀鎼哄甫鍘熸ā鍨嬬殑鏄惧紡鎬濊€冩。銆?
-- 褰撳墠 npm next 涓?0.2.1-rc.4锛屽悓灞?0.2.1 棰勫彂甯冧笁鍏冪粍锛岀幇鏈?peer 鑼冨洿宸茶鐩栵紝鏃犻渶鏀惧鑷虫湭缁忛獙璇佺殑 0.2.2-alpha銆?
-- 鏂板璁剧疆椤靛埛鏂扮粍浠跺洖褰掞細閲嶆媺鐩綍銆佸埛鏂扮姸鎬併€侀噸澶嶇偣鍑汇€佽崏绋夸繚鐣欏強澶辫触淇濈暀銆傚鎴风鐜板満 Inspect 瓒呮椂锛屽皻鏈畬鎴愮湡瀹為〉闈㈣瑙夐獙鏀讹紱涓嶅绉?rc.4 瀹屾暣鍚姩楠岃瘉銆?
+- 设置页新增常驻「刷新模型列表」按钮，重新读取 Provider 和模型，不重载或保存策略，不改变未保存编辑与当前选择。
+- 刷新期间显示加载状态并阻止重复点击；失败可重试并保留此前目录。客户端启用严格目录错误信封，避免将请求失败伪装成空目录；旧 RPC 调用保持降级行为。
+- 修复当前核心公开 `agent.id` 身份下的每会话开关识别，兼容旧的嵌套 session 字段。
+- 跨模型路由且策略未指定思考档时，不再携带原模型的显式思考档。
+- 当前 npm next 为 0.2.1-rc.4，同属 0.2.1 预发布三元组，现有 peer 范围已覆盖，无需放宽至未经验证的 0.2.2-alpha。
+- 新增设置页刷新组件回归：重拉目录、刷新状态、重复点击、草稿保留及失败保留。客户端现场 Inspect 超时，尚未完成真实页面视觉验收；不宣称 rc.4 完整启动验证。
 
 ## [0.13.0] - 2026-10-18
 
-**鏂版牳蹇?0.2.1-rc.2 閫傞厤鐗?*锛氶€愭潯鏍稿鎺ョ紳銆佸湪鐪熸牳蹇冧笂璺戣繃锛岀粨璁烘槸**浠ｇ爜涓嶇敤鏀癸紝澹版槑鐨勫吋瀹瑰尯闂村繀椤绘敼**銆?
+**新核心 0.2.1-rc.2 适配版**：逐条核对接缝、在真核心上跑过，结论是**代码不用改，声明的兼容区间必须改**。
 
-### 鑳屾櫙
+### 背景
 
-妗岄潰绔?`0.12.0` 浠嶇粦瀹夸富鍖?`0.2.0-rc.2`锛沶pm 涓?`@deepseek-ai/dsh` 鐨?`next` 鏄?**`0.2.1-rc.2`**
-锛坄latest` 浠嶆槸 `0.2.0-rc.2`锛夈€傛湰鐗堟槸鎷?`0.2.1-rc.2` 鐨勭嫭绔嬫牳蹇冿紙`core-switch.ps1` 閭ｄ竴濂楋級閫愰」楠岀殑銆?
+桌面端 `0.12.0` 仍绑宿主包 `0.2.0-rc.2`；npm 上 `@deepseek-ai/dsh` 的 `next` 是 **`0.2.1-rc.2`**
+（`latest` 仍是 `0.2.0-rc.2`）。本版是拿 `0.2.1-rc.2` 的独立核心（`core-switch.ps1` 那一套）逐项验的。
 
-### 鎺ョ紳鏍稿锛堝厛鐪嬬洰褰曪紝鍐嶇湅鐪熸牳蹇冿級
+### 接缝核对（先看目录，再看真核心）
 
-鐢ㄥ涓昏嚜甯︾殑鏈哄櫒鍙鐩綍 `dsh-tool-cordis/lib/types/api-catalog.js` 鍋氶€愭潯姣斿
-锛堟棫鏍稿績 609,169 瀛楄妭 / 鏂版牳蹇?663,240 瀛楄妭锛夛細
+用宿主自带的机器可读目录 `dsh-tool-cordis/lib/types/api-catalog.js` 做逐条比对
+（旧核心 609,169 字节 / 新核心 663,240 字节）：
 
-- **浜嬩欢**锛歚agent/request`銆乣agent/request-error`銆乣llm/adapters-updated` 鐨勭鍚嶄笌 waterfall/emit
-  妯″紡**閫愬瓧鐩稿悓**銆傛柊澧炵殑鍙湁 `plugin-market/changed`銆?
-- **鏈嶅姟**锛歚agentDefaultModel` 鐨勬柟娉曡〃瀹屽叏鐩稿悓锛坄currentSelection()` / `saveSelection()`锛夛紱
-  `llm` 鍙湁**鏂板**锛坄imageRequestTarget()`銆乣prepareCall()` 澶氫竴涓彲閫?`configure` 鍙傛暟锛夛紝
-  閬垮嘲宀楃敤鍒扮殑 `listProviders()` / `listModels(provider)` 娌″姩锛?
-  `connection` 鐨?`fetch.register` / `rpc` 浠嶅湪锛坄operator` 鏀瑰悕 `browserPeer`锛屾湰鎻掍欢娌＄敤瀹冿級銆?
-  鏈嶅姟鎬讳綋鏄€屽 8 涓€佸皯 1 涓€嶏細鏂板鐨?8 涓紙`workingDirectory` / `webApp` / `worktrees` / `translator` 鈥︼級
-  涓庡垹鎺夌殑 1 涓紙`invariants`锛夐兘娌℃湁琚湰鎻掍欢寮曠敤銆?
-- **cordis**锛歚4.0.4` 鈫?`4.0.5`锛沗{ global: true, prepend: true }` 杩欎袱涓洃鍚€夐」浠嶅湪
-  鈥斺€?涔熷氨鏄€岄伩宄板矖鍦?`agent/request` 閲屾渶澶栧眰鏀规ā鍨嬨€嶈繖浠朵簨渚濈劧鎴愮珛銆?
-- **瀹㈡埛绔?*锛歚sidebar.footer.action`銆乣conversation.input.left`銆乣sidebar.session.row.leading`銆?
-  `settings.section` 鍥涗釜鎻掓Ы閮藉湪锛沗ctx.locale.register/bind`銆乣connection.rpc.call('/api', 鈥?`
-  绛惧悕涓嶅彉銆?
+- **事件**：`agent/request`、`agent/request-error`、`llm/adapters-updated` 的签名与 waterfall/emit
+  模式**逐字相同**。新增的只有 `plugin-market/changed`。
+- **服务**：`agentDefaultModel` 的方法表完全相同（`currentSelection()` / `saveSelection()`）；
+  `llm` 只有**新增**（`imageRequestTarget()`、`prepareCall()` 多一个可选 `configure` 参数），
+  避峰岗用到的 `listProviders()` / `listModels(provider)` 没动；
+  `connection` 的 `fetch.register` / `rpc` 仍在（`operator` 改名 `browserPeer`，本插件没用它）。
+  服务总体是「多 8 个、少 1 个」：新增的 8 个（`workingDirectory` / `webApp` / `worktrees` / `translator` …）
+  与删掉的 1 个（`invariants`）都没有被本插件引用。
+- **cordis**：`4.0.4` → `4.0.5`；`{ global: true, prepend: true }` 这两个监听选项仍在
+  —— 也就是「避峰岗在 `agent/request` 里最外层改模型」这件事依然成立。
+- **客户端**：`sidebar.footer.action`、`conversation.input.left`、`sidebar.session.row.leading`、
+  `settings.section` 四个插槽都在；`ctx.locale.register/bind`、`connection.rpc.call('/api', …)`
+  签名不变。
 
-### 瀹炴祴锛?.2.1-rc.2 鐙珛鏍稿績锛岄殧绂?DSH_HOME锛?
+### 实测（0.2.1-rc.2 独立核心，隔离 DSH_HOME）
 
-- 鎻掍欢瑁呰繘 profile 鍚庢甯稿姞杞斤細`apply: v0.12.0, enabled=true, 鈥?llm -> true`銆?
-- 涓夋潯 RPC锛坄get` / `providers` / `models`锛夊叏閮?**HTTP 200**锛沗get` 閲岀殑 `active` 鍐崇瓥姝ｇ‘
-  锛堝懆鏃?鈫?`fallback-first-primary`锛夛紝璇存槑绛栫暐寮曟搸涓?`llm.listProviders()` 鍦ㄦ柊鏍稿績涓婇兘鍦ㄥ伐浣溿€?
-- 瀹㈡埛绔ā鍧楃‘瀹炶瀹夸富鎵撳寘涓嬪彂锛歚dsh-peak-valley-router` 鍑虹幇鍦?page 棰勮浇鐨?client bundle 閲屻€?
-- 鐢?`dsh --profile headless --patch`锛堝彧鎶婃彃浠舵彃杩涜繖涓€妫垫爲锛夌湡璺戜簡涓€涓?turn锛?
+- 插件装进 profile 后正常加载：`apply: v0.12.0, enabled=true, … llm -> true`。
+- 三条 RPC（`get` / `providers` / `models`）全部 **HTTP 200**；`get` 里的 `active` 决策正确
+  （周日 → `fallback-first-primary`），说明策略引擎与 `llm.listProviders()` 在新核心上都在工作。
+- 客户端模块确实被宿主打包下发：`dsh-peak-valley-router` 出现在 page 预载的 client bundle 里。
+- 用 `dsh --profile headless --patch`（只把插件插进这一棵树）真跑了一个 turn：
   `agent/request: routed model "deepseek-official/deepseek-flash" is not in the provider catalog`
-  鈥斺€?璇?home 娌℃湁 `DEEPSEEK_API_KEY`锛岃姹傚湪 provider 灞備互 `MISSING_CREDENTIAL` 缁撴潫锛堥浂 token 娑堣€楋級锛?
-  浣?*鎺ョ紳鐪熺殑琚墽琛屼簡**锛岃繖涓€琛屽氨鏄瘉鎹€?
-- 鏈€鍚庢妸瀹冭杩涚湡姝ｄ細琚惎鐢ㄧ殑閭ｄ釜 home锛坄home/0.2.1-rc.2-shared`锛屼細璇濅笌妗岄潰绔叡浜級鍐嶈窇涓€娆★細
-  `apply: v0.13.0, enabled=false, 鈥?llm -> true`锛沗get` 鍥炲寘鐨?`version` 鏄?`0.13.0`锛?
-  瀹㈡埛绔ā鍧楀悓鏍峰嚭鐜板湪璇?home 涓嬪彂鐨?client bundle 閲屻€傚畨瑁呯敤 `dsh plugin --profile web add <鏈粨搴?`锛?
-  浣?CLI 鍙啓浜?`dependencies`銆?*娌℃湁鎶婂寘鍚嶅姞杩?`dsh.profile.bundles`**锛屾墜鍔ㄨˉ涓€琛屾墠琚姞杞姐€?
-- 璇?home 閲岀粍浠堕粯璁や粛鏄?*鍏抽棴**锛坄state.json` 鏈啓锛岃涓轰笌鏈鎻掍欢涓€鑷达級锛岃涓嶈鎵撳紑鐢变綘鍐冲畾銆?
+  —— 该 home 没有 `DEEPSEEK_API_KEY`，请求在 provider 层以 `MISSING_CREDENTIAL` 结束（零 token 消耗），
+  但**接缝真的被执行了**，这一行就是证据。
+- 最后把它装进真正会被启用的那个 home（`home/0.2.1-rc.2-shared`，会话与桌面端共享）再跑一次：
+  `apply: v0.13.0, enabled=false, … llm -> true`；`get` 回包的 `version` 是 `0.13.0`；
+  客户端模块同样出现在该 home 下发的 client bundle 里。安装用 `dsh plugin --profile web add <本仓库>`，
+  但 CLI 只写了 `dependencies`、**没有把包名加进 `dsh.profile.bundles`**，手动补一行才被加载。
+- 该 home 里组件默认仍是**关闭**（`state.json` 未写，行为与未装插件一致），要不要打开由你决定。
 
-### 淇锛堝敮涓€纭樆濉烇級
+### 修复（唯一硬阻塞）
 
-`peerDependencies` 閲岀殑 `@deepseek-ai/dsh-llm` 鍘熸湰鏄?`^0.2.0-rc.2`锛岃€屽畠**涓嶆帴鍙?`0.2.1-rc.2`**锛?
-semver 閲岄鍙戝竷鐗堟湰鍙兘琚€岀偣鍚嶄簡鍚屼竴涓?`[major, minor, patch]` 涓夊厓缁勩€嶇殑鍖洪棿鎺ュ彈锛?
-`0.2.1-rc.2` 涓?`0.2.0-rc.2` 涓嶆槸鍚屼竴涓笁鍏冪粍锛堝疄娴?`satisfies('0.2.1-rc.2', '^0.2.0-rc.2') === false`锛夈€?
-鎺ョ紳鍏ㄦ槸濂界殑锛屼絾寮哄埗 peer 鐨勬彃浠剁鐞嗗櫒浼氬洜姝ゆ妸瀹夎/婵€娲诲垽鎴愩€屼笌瀹夸富涓嶅吋瀹广€嶃€?
+`peerDependencies` 里的 `@deepseek-ai/dsh-llm` 原本是 `^0.2.0-rc.2`，而它**不接受 `0.2.1-rc.2`**：
+semver 里预发布版本只能被「点名了同一个 `[major, minor, patch]` 三元组」的区间接受，
+`0.2.1-rc.2` 与 `0.2.0-rc.2` 不是同一个三元组（实测 `satisfies('0.2.1-rc.2', '^0.2.0-rc.2') === false`）。
+接缝全是好的，但强制 peer 的插件管理器会因此把安装/激活判成「与宿主不兼容」。
 
-- 鍖洪棿鏀逛负 **`^0.2.0-rc.2 || ^0.2.1-rc.2`**锛堝悗缁瘡鏉?rc 绾块兘瑕佹樉寮忓姞涓€椤癸紝涓嶄細琚?`^0.2.x` 鑷姩甯﹀叆锛夈€?
-- 鍚屾椂鍘绘帀 `^0.1.1-rc.2` / `^0.1.7-rc.1`锛氶偅涓ゆ潯鏄巻鍙插０鏄庯紝褰撳墠浠ｇ爜娌℃湁鍦?0.1.x 涓婇獙杩囷紱
-  鐣欑潃绛変簬瀹ｇО涓€绉嶆病浜烘祴杩囩殑鍏煎銆?
+- 区间改为 **`^0.2.0-rc.2 || ^0.2.1-rc.2`**（后续每条 rc 线都要显式加一项，不会被 `^0.2.x` 自动带入）。
+- 同时去掉 `^0.1.1-rc.2` / `^0.1.7-rc.1`：那两条是历史声明，当前代码没有在 0.1.x 上验过；
+  留着等于宣称一种没人测过的兼容。
 
-### 鏂板
+### 新增
 
-- `scripts/host-compat.test.mjs`锛氭妸銆屽０鏄庣殑鍖洪棿蹇呴』鎺ュ彈宸插疄娴嬪涓汇€佷笖蹇呴』鎺掗櫎鐩搁偦 rc 绾夸笌澶х増鏈€?
-  閽夋垚鍥炲綊娴嬭瘯锛屽苟**鑷甫鍙嶆帶**锛堝厛鏂█ `^0.2.0-rc.2` 鎷掔粷 `0.2.1-rc.2`锛岃瘉鏄庢鏌ュ櫒涓嶆槸鎭掔湡锛夈€?
-  宸叉帴杩?`npm test` 涓?`npm run verify`銆?
+- `scripts/host-compat.test.mjs`：把「声明的区间必须接受已实测宿主、且必须排除相邻 rc 线与大版本」
+  钉成回归测试，并**自带反控**（先断言 `^0.2.0-rc.2` 拒绝 `0.2.1-rc.2`，证明检查器不是恒真）。
+  已接进 `npm test` 与 `npm run verify`。
 
-### 椤哄甫瑙傚療锛堟湭鏀癸紝鐣欐。锛?
+### 顺带观察（未改，留档）
 
-鎵嬪伐缂栬緫 `state.json` 鏃惰嫢甯?UTF-8 BOM锛宍JSON.parse` 浼氭姏閿欙紝鎻掍欢鎸夈€屽叧闂€嶉潤榛樺鐞?
-锛堥獙璇佽繃绋嬩腑韪╁埌涓€娆★級銆侴UI 鍐欏嚭鐨勬枃浠舵病鏈?BOM锛屾墍浠ュ彧褰卞搷鎵嬪伐缂栬緫锛涜淇殑璇濇槸鍦ㄨВ鏋愬墠鍓ユ帀 BOM锛?
-灞炰簬鐙珛鐨勪竴浠朵簨锛屼笉娣疯繘鏈増銆?
+手工编辑 `state.json` 时若带 UTF-8 BOM，`JSON.parse` 会抛错，插件按「关闭」静默处理
+（验证过程中踩到一次）。GUI 写出的文件没有 BOM，所以只影响手工编辑；要修的话是在解析前剥掉 BOM，
+属于独立的一件事，不混进本版。
 
 ## [0.12.0] - 2026-10-17
 
-**DSH 0.12.0 鍏煎鐗?*锛氶€愪釜鏍稿鏈€鏂板涓荤殑鎺ョ紳锛屽苟鎶娿€屾鍒讳负浠€涔堟槸杩欏彴妯″瀷銆嶅彉鎴愮晫闈笂鐪嬪緱瑙佺殑涓€琛屻€?
+**DSH 0.12.0 兼容版**：逐个核对最新宿主的接缝，并把「此刻为什么是这台模型」变成界面上看得见的一行。
 
-### 鑳屾櫙锛堝崌绾ф帓鏌ョ粨璁猴級
+### 背景（升级排查结论）
 
-DSH 妗岄潰绔敱 0.11.x 鍗囧埌 **0.12.0**锛堝涓诲寘 `@deepseek-ai/dsh-*` 鍏ㄩ儴 `0.2.0-rc.2`锛夛紝鍚屾椂绗笁鏂?
-`dsh-plugin-subscriptions@0.9.9` 鎶?ChatGPT/Claude/Grok 绛夎闃呭彉鎴?provider锛屾柊澧?*妯″瀷浼樺厛绾?*銆?
-**姹犳垚鍛樿疆鎹?*涓?**429 鍐峰嵈**锛沗codex` 鐩綍鏂板 `gpt-6.1-sol`锛坧riority 1锛変笌 `gpt-6-sol`銆?
+DSH 桌面端由 0.11.x 升到 **0.12.0**（宿主包 `@deepseek-ai/dsh-*` 全部 `0.2.0-rc.2`），同时第三方
+`dsh-plugin-subscriptions@0.9.9` 把 ChatGPT/Claude/Grok 等订阅变成 provider，新增**模型优先级**、
+**池成员轮换**与 **429 冷却**；`codex` 目录新增 `gpt-6.1-sol`（priority 1）与 `gpt-6-sol`。
 
-鎸夊涓昏嚜甯︾殑浜嬩欢鐩綍锛坄api-catalog`锛夐€愭潯鏍稿鍚庣‘璁?*閬垮嘲宀楃殑鎺ョ紳娌℃湁鏂?*锛?
-`agent/request` 鐨?payload 浠嶅甫 `agent`锛堢敱 `@deepseek-ai/dsh-scope` 鍦ㄥ垎鍙戞椂娉ㄥ叆锛夛紝
-`internal/get`銆乣llm.listProviders()` / `llm.listModels()` 浠ュ強涓変釜瀹㈡埛绔彃妲斤紙`sidebar.footer.action`銆?
-`conversation.input.left`銆乣sidebar.session.row.leading`锛夊叏閮ㄧ収鏃с€?
+按宿主自带的事件目录（`api-catalog`）逐条核对后确认**避峰岗的接缝没有断**：
+`agent/request` 的 payload 仍带 `agent`（由 `@deepseek-ai/dsh-scope` 在分发时注入），
+`internal/get`、`llm.listProviders()` / `llm.listModels()` 以及三个客户端插槽（`sidebar.footer.action`、
+`conversation.input.left`、`sidebar.session.row.leading`）全部照旧。
 
-鐪熸鐨勭幇璞℃槸锛?*鍛ㄦ湯/鍋囨湡娌℃湁浠讳綍绛栫暐鍖归厤 鈫?钀藉埌 `advancedSupport` 鍏滃簳**锛岃€屽厹搴曠洰鏍囨伆濂介厤棰濊€楀敖
-锛圚TTP 429 `usage_limit_reached`锛夛紝浜庢槸琛ㄧ幇涓?閬垮嘲宀椾竴寮€灏辨姤閿?銆傝繖鏄璁¤涓哄彔鍔?provider 閰嶉鐘舵€侊紝
-涓嶆槸鎺ュ彛鏂鈥斺€斾絾瀹冩鍓嶅彧鍐欏湪 `debug.log` 閲岋紝鐣岄潰涓婂畬鍏ㄧ湅涓嶅嚭鏉ャ€?
+真正的现象是：**周末/假期没有任何策略匹配 → 落到 `advancedSupport` 兜底**，而兜底目标恰好配额耗尽
+（HTTP 429 `usage_limit_reached`），于是表现为"避峰岗一开就报错"。这是设计行为叠加 provider 配额状态，
+不是接口断裂——但它此前只写在 `debug.log` 里，界面上完全看不出来。
 
-### 璇箟淇锛堥噸瑕侊紝瀹氫箟鏀逛簡涓ゅ锛?
+### 语义修正（重要，定义改了两处）
 
-鍘熸潵鎶?`advancedSupport`锛堥珮绾фā鍨嬫敮鎻达級褰撴垚浜嗐€?*娌℃湁鏂规鍖归厤鏃跺氨鐢ㄥ畠**銆嶇殑鍏滃簳銆傚湪"鏂规閮芥槸鍛ㄤ竴鍒板懆浜?
-杩欑被甯歌閰嶇疆涓嬶紝閭ｇ瓑浜?*鏁翠釜鍛ㄦ湯鍜屽亣鏈熸妸鎵€鏈変細璇濋兘椤跺埌鏈€璐电殑楂樼骇妯″瀷涓?*鈥斺€旇繖娆″氨鏄繖涔堟妸 `codex/gpt-6-astra`
-鐨勮闃呮睜棰濆害鐑х┛鐨勶紙HTTP 429 `usage_limit_reached`锛? 灏忔椂绐楀彛锛夈€傜幇鍦ㄦ寜姝ｇ‘鐨勫垝鍒嗘敼鍐欙細
+原来把 `advancedSupport`（高级模型支援）当成了「**没有方案匹配时就用它**」的兜底。在"方案都是周一到周五"
+这类常见配置下，那等于**整个周末和假期把所有会话都顶到最贵的高级模型上**——这次就是这么把 `codex/gpt-6-astra`
+的订阅池额度烧穿的（HTTP 429 `usage_limit_reached`，5 小时窗口）。现在按正确的划分改写：
 
-> `{ 鏂规浠紙涓诲姏妯″瀷銆侀敊宄版ā鍨嬶級锛岄珮绾ф€濊€冩ā鍨?}` 鈥斺€?楂樼骇鎬濊€冩ā鍨嬫槸**鍙︿竴鏍硅酱**锛屼笉鏄厹搴曟柟妗堛€?
+> `{ 方案们（主力模型、错峰模型），高级思考模型 }` —— 高级思考模型是**另一根轴**，不是兜底方案。
 
-- **鏃犳柟妗堝尮閰嶏紙鍛ㄦ湯/鍋囨湡锛夆啋 鐢ㄧ涓€涓柟妗堢殑銆屼富鍔涙ā鍨嬨€?*锛堜笉鍐嶇敤楂樼骇妯″瀷锛夈€?
-- **楂樼骇鎬濊€冩ā鍨嬪彧鍦ㄣ€屼細璇濇湰韬姹?max 鎬濊€冦€嶆椂浣跨敤**锛坄reasoningEffort === 'max'`锛夛紝涓庢椂闂存棤鍏筹紱
-  鏅€氳姹傦紙low/medium/high/xhigh锛夋案杩滀笉浼氳鍗囧埌瀹冦€?
-- 瀹屽叏娌℃湁閰嶇疆鏂规鏃讹紝楂樼骇鎬濊€冩ā鍨嬫槸鍞竴鐩爣锛岀敤瀹冩槸鍚堢悊鐨勶紝鍘熷洜鏍囪涓?`advanced-only`銆?
+- **无方案匹配（周末/假期）→ 用第一个方案的「主力模型」**（不再用高级模型）。
+- **高级思考模型只在「会话本身要求 max 思考」时使用**（`reasoningEffort === 'max'`），与时间无关；
+  普通请求（low/medium/high/xhigh）永远不会被升到它。
+- 完全没有配置方案时，高级思考模型是唯一目标，用它是合理的，原因标记为 `advanced-only`。
 
-### 鏂板
+### 新增
 
-- **璁剧疆椤甸《閮ㄣ€屾鍒荤敓鏁堬細provider/model@effort 路 鍘熷洜銆?*銆傚師鍥犲彇鍊硷細宄版椂鏂规 / 骞虫椂鏂规 /
-  鏃犲尮閰嶆柟妗堬紙鍛ㄦ湯/鍋囨湡锛岀敤棣栦釜鏂规鐨勪富鍔涙ā鍨嬶級/ 鏈厤缃柟妗堝彧鏈夐珮绾ф€濊€冩ā鍨?/ 浼氳瘽瑕佹眰 max 鎬濊€?/ 鏃犲彲鐢ㄧ洰鏍囷紱
-  鏈熬杩樹細闄勪笂銆屼細璇濊姹?max 鎬濊€冩椂鈫扻銆嶏紝鎶婇珮绾фā鍨嬭繖鏍圭嫭绔嬬殑杞村啓鍦ㄦ槑闈笂銆?
-- `get` RPC 鏂板 `active` 瀛楁锛堝綋鍓嶇洰鏍?+ 鍘熷洜 + 鏄熸湡 + 鏄惁鍋囨湡 + `advancedForMax`锛夛紝渚涚晫闈笌澶栭儴鑴氭湰璇诲彇銆?
-- 璺敱鏃ュ織甯︿笂鍘熷洜锛屼緥濡?`... via fallback-first-primary`銆?
+- **设置页顶部「此刻生效：provider/model@effort · 原因」**。原因取值：峰时方案 / 平时方案 /
+  无匹配方案（周末/假期，用首个方案的主力模型）/ 未配置方案只有高级思考模型 / 会话要求 max 思考 / 无可用目标；
+  末尾还会附上「会话要求 max 思考时→X」，把高级模型这根独立的轴写在明面上。
+- `get` RPC 新增 `active` 字段（当前目标 + 原因 + 星期 + 是否假期 + `advancedForMax`），供界面与外部脚本读取。
+- 路由日志带上原因，例如 `... via fallback-first-primary`。
 
-### 淇
+### 修复
 
-- `peerDependencies` 閲岀殑 `@deepseek-ai/dsh-llm` 鐢辩簿纭殑 `0.2.0-rc.2` 鏀惧涓?`^0.2.0-rc.2`锛?
-  0.2.0-rc.3 / 0.2.x 瀹夸富涓嶅啀琚垽涓轰笉鍏煎銆?
-- 闅忔満鍖栧睘鎬ф祴璇曠 4 闃舵锛堥噸杞斤級鐨勫亣妯″瀷鐩綍鍙垪浜?`gpt-5.6-luna`锛屽懆鍏細钀藉埌 `advancedSupport`
-  鐨?`gpt-6-astra` 鑰岃鐩綍鏍￠獙鎷︿笅鈥斺€?*璇ョ敤渚嬩細闅?浠婂ぉ鏄熸湡鍑?闅忔満澶辫触**銆傚凡琛ラ綈鐩綍锛屼娇瀹冨彧鍦ㄧ湡缂洪櫡鏃跺け璐ャ€?
-- 鎺掓煡涓姄鍒板苟淇帀鑷繁鐨勪竴澶勫洖褰掞細`logOverride` 灏戝啓 `reason` 褰㈠弬锛屽鑷存瘡娆¤矾鐢辨姏
-  `reason is not defined` 琚?catch 鍚炴帀銆佹暣浣撻€€鍖栦负"涓嶈矾鐢?锛堝睘鎬ф祴璇?1174 椤瑰け璐ュ綋鍦烘毚闇诧級銆?
+- `peerDependencies` 里的 `@deepseek-ai/dsh-llm` 由精确的 `0.2.0-rc.2` 放宽为 `^0.2.0-rc.2`，
+  0.2.0-rc.3 / 0.2.x 宿主不再被判为不兼容。
+- 随机化属性测试第 4 阶段（重载）的假模型目录只列了 `gpt-5.6-luna`，周六会落到 `advancedSupport`
+  的 `gpt-6-astra` 而被目录校验拦下——**该用例会随"今天星期几"随机失败**。已补齐目录，使它只在真缺陷时失败。
+- 排查中抓到并修掉自己的一处回归：`logOverride` 少写 `reason` 形参，导致每次路由抛
+  `reason is not defined` 被 catch 吞掉、整体退化为"不路由"（属性测试 1174 项失败当场暴露）。
 
-### 涓?Provider 閰嶉鐨勫叧绯伙紙閲嶈锛?
+### 与 Provider 配额的关系（重要）
 
-閬垮嘲宀楀彧鍐冲畾"鐢ㄥ摢涓?provider/model"锛?*涓嶇鐞嗛厤棰?*锛涚洰鏍囨睜鍐峰嵈鏃惰姹備細鍦?provider 灞傚け璐ャ€?
-鎸変慨姝ｅ悗鐨勮涔夛紝鍛ㄦ湯/鍋囨湡鍙細钀藉埌鏂规鐨?*涓诲姏妯″瀷**锛屼笉浼氭秷鑰楅珮绾фā鍨嬬殑棰濆害锛?
-鍙湁浣狅紙鎴栦細璇濓級鏄庣‘瑕佹眰 max 鎬濊€冩椂鎵嶄細鍔ㄧ敤楂樼骇鎬濊€冩ā鍨嬨€傛兂鍗曠嫭瑙勫畾鍛ㄦ湯鐢ㄥ摢涓ā鍨嬶紝
-鐓ф棫鍔犱竴鏉?`weekdays: [6, 7]` 鐨勬柟妗堝嵆鍙€?
+避峰岗只决定"用哪个 provider/model"，**不管理配额**；目标池冷却时请求会在 provider 层失败。
+按修正后的语义，周末/假期只会落到方案的**主力模型**，不会消耗高级模型的额度；
+只有你（或会话）明确要求 max 思考时才会动用高级思考模型。想单独规定周末用哪个模型，
+照旧加一条 `weekdays: [6, 7]` 的方案即可。
 
 ## [0.11.0] - 2026-10-15
 
-**鏄惧紡鐨勩€屽叏灞€瑙ｈ€︺€嶅皬寮€鍏?*锛氭妸銆岃繖涓細璇濊窡涓嶈窡闅忓叏灞€銆嶅彉鎴愪竴浠跺彲瑙併€佸彲鎺х殑浜嬨€?
+**显式的「全局解耦」小开关**：把「这个会话跟不跟随全局」变成一件可见、可控的事。
 
-### 璇箟锛堟槑纭笅鏉ワ級
+### 语义（明确下来）
 
-- **鍏ㄥ眬 = 鎬婚椄**锛氬垏鎹㈠畠瀵规墍鏈夈€岃窡闅忎腑銆嶇殑浼氳瘽涓€娆℃€х敓鏁堬紙鎵竴閬嶏級銆?
-- **灞€閮ㄥ崟鐙敼杩囩殑浼氳瘽涓嶅啀琚叏灞€鍒囨崲甯﹁蛋**鈥斺€斾袱涓柟鍚戦兘涓嶈窡闅忥紱瑕侀噸鏂拌窡闅忓氨鏄惧紡鎺ュ洖銆?
-- **瑙ｈ€?/ 鎺ュ洖鍙垏鎹㈣繛鎺ュ叧绯?*锛屼笉鏀瑰彉銆屾鍒绘槸鍚︾敓鏁堛€嶃€?
+- **全局 = 总闸**：切换它对所有「跟随中」的会话一次性生效（扫一遍）。
+- **局部单独改过的会话不再被全局切换带走**——两个方向都不跟随；要重新跟随就显式接回。
+- **解耦 / 接回只切换连接关系**，不改变「此刻是否生效」。
 
-### 鏂板
+### 新增
 
-- composer 杈撳叆鍖哄乏渚ф柊澧炵浜屼釜灏忓紑鍏炽€岃В鑰︺€嶏紙涓や釜鍦嗙幆鐩告帴锛濊窡闅忓叏灞€锛屽垎寮€锛濆凡瑙ｈ€︼級锛?
-  - 璺熼殢涓?鈫?鐐逛竴涓?*瑙ｈ€?*锛氭妸褰撳墠鏈夋晥鍊煎浐瀹氫负鏈細璇濈殑鐙珛鍊硷紝鍙鐘舵€佷笉鍙橈紝姝ゅ悗鍏ㄥ眬鍒囨崲涓嶅啀褰卞搷瀹冿紱
-  - 宸茶В鑰?鈫?鐐逛竴涓?*鎺ュ洖**锛氭竻闄ょ嫭绔嬪€硷紝閲嶆柊璺熼殢鍏ㄥ眬銆?
-- 浼氳瘽鍒楄〃灏忕伅瀵瑰凡瑙ｈ€︾殑浼氳瘽澶氫竴鍦堟贰鐜紝鎻愮ず鏂囨涔熷尯鍒嗐€岃窡闅忓叏灞€ / 宸茶В鑰︺€嶃€?
-- 渚ц竟鏍忕殑鍏ㄥ眬寮€鍏虫彁绀洪噷鏄剧ず銆屄?N 涓凡瑙ｈ€︺€嶁€斺€斿惁鍒欒В鑰﹁繃鐨勪細璇濆湪鍏ㄥ眬渚у畬鍏ㄤ笉鍙銆?
-- 绗竴涓寜閽殑鍙抽敭銆屾仮澶嶈窡闅忓叏灞€銆嶄繚鐣欙紝浣滀负鎺ュ洖鐨勫揩鎹锋柟寮忋€?
+- composer 输入区左侧新增第二个小开关「解耦」（两个圆环相接＝跟随全局，分开＝已解耦）：
+  - 跟随中 → 点一下**解耦**：把当前有效值固定为本会话的独立值，可见状态不变，此后全局切换不再影响它；
+  - 已解耦 → 点一下**接回**：清除独立值，重新跟随全局。
+- 会话列表小灯对已解耦的会话多一圈淡环，提示文案也区分「跟随全局 / 已解耦」。
+- 侧边栏的全局开关提示里显示「· N 个已解耦」——否则解耦过的会话在全局侧完全不可见。
+- 第一个按钮的右键「恢复跟随全局」保留，作为接回的快捷方式。
 
-### 宸ョ▼
+### 工程
 
-- `scripts/verify.mjs` 鐨勬枃妗?key 鏍￠獙姝ゅ墠鍙尮閰?`t('key')`锛屾紡鎺夊甫鍙傛暟鐨?`t('key', { 鈥?})`锛涘凡淇銆傝繖娆?`decoupledCount` 鐨勫懡鍚嶄笉涓€鑷达紙瀹㈡埛绔彨 `decoupledCount`銆佹枃妗堣〃鍐欐垚 `decoupleCount`锛夋鏄鏀惧鍚庣殑姝ｅ垯涓?copy 娴嬭瘯涓€璧锋姄鍑烘潵鐨勩€?
-- 鏂板鏂█锛氬凡瑙ｈ€︾殑浼氳瘽鍦ㄥ叏灞€**涓や釜鏂瑰悜**缈昏浆鏃堕兘涓嶈窡闅忥紝鎺ュ洖鍚庨噸鏂拌窡闅忋€?
+- `scripts/verify.mjs` 的文案 key 校验此前只匹配 `t('key')`，漏掉带参数的 `t('key', { … })`；已修正。这次 `decoupledCount` 的命名不一致（客户端叫 `decoupledCount`、文案表写成 `decoupleCount`）正是被放宽后的正则与 copy 测试一起抓出来的。
+- 新增断言：已解耦的会话在全局**两个方向**翻转时都不跟随，接回后重新跟随。
 
 ## [0.10.2] - 2026-10-14
 
-鐙珛澶嶆牳锛堝鎶楁€э級鎶ュ嚭鐨勭己闄蜂慨澶嶃€傚鏍哥殑 9 椤瑰繀鏌ュ叏閮ㄩ€氳繃锛屼互涓嬫槸鎴戞嵁姝ゆ敼鎺夌殑鐪熼棶棰樸€?
+独立复核（对抗性）报出的缺陷修复。复核的 9 项必查全部通过，以下是我据此改掉的真问题。
 
-### 淇
+### 修复
 
-- **鏁存暟鍨嬩細璇?id 涓嶅啀琚彁鍓嶆窐姹?*锛欽S 瀵硅薄浼氭妸鏁存暟鍨嬮敭鎺掑埌鏈€鍓嶅苟鎸夊崌搴忔灇涓撅紝鎵€浠ャ€屽垹闄ゅ悗閲嶆柊璧嬪€笺€?*涓嶄細**鎶婂畠绉诲埌鏈熬鈥斺€擿"0"` 杩欑 id 鍒氳缃畬灏变細琚綋鎴愭渶鏃ф潯鐩窐姹帮紝瑕嗙洊**闈欓粯娑堝け**锛堜笌 0.10.1 淇殑 `__proto__` 灞炰簬鍚屼竴绫婚潤榛樹涪澶憋級銆傚唴瀛橀噷鐨勮鐩栬〃鏀圭敤 `Map`锛堟彃鍏ラ『搴忓鎵€鏈夐敭褰㈢姸閮界簿纭級锛涜惤鐩樹粛鏄?`{ id: boolean }` 瀵硅薄锛屾棫鏂囦欢涓庡鎴风濂戠害涓嶅彉銆傝ˉ浜嗛拡瀵规暣鏁板瀷 id 鐨勫洖褰掓柇瑷€锛堟棫鐨勫閲忔祴璇曞彧鐢?`s${i}`锛屾姄涓嶅埌锛夈€?
-- **闈炲瓧绗︿覆 `sessionId` 涓嶅啀闈欓粯鍙樻垚鍏ㄥ眬寮€鍏?*锛歚toggle { sessionId: 12345, enabled: false }` 杩囧幓浼氳蛋杩?娌℃湁浼氳瘽 id"鐨勫垎鏀紝鎶?*鎵€鏈?*浼氳瘽鐨勯粯璁よ矾鐢卞叧鎺夛紝鑰屼笖鍥炲寘閲屾病鏈?`sessionId` 瀛楁锛岃皟鐢ㄦ柟鏍规湰鐪嬩笉鍑鸿蛋浜嗗摢涓垎鏀€傜幇鍦ㄣ€屽瓨鍦ㄤ絾涓嶆槸闈炵┖瀛楃涓层€嶄竴寰嬭繑鍥?`bad-request`锛屽苟璁颁竴琛屾棩蹇椼€?
-- **`toggle` 鐨勪袱绉嶅弬鏁板舰鐘惰涔夌粺涓€**锛氭寜浼氳瘽鐨勮矾寰勫湪涓嶄紶 `enabled` 鏃朵細缈昏浆褰撳墠鏈夋晥鍊硷紝鑰屽叏灞€璺緞杩囧幓鏄?*闈欓粯 no-op**銆傜幇鍦ㄥ叏灞€璺緞鍚屾牱缈昏浆銆?
-- **瑙嗚鎺ョ涓嶅啀闂儊**锛氭寕杞?鍗歌浇涓庡彇鍊兼洿鏂版媶鎴愪袱涓?effect銆傛鍓嶆瘡娆″垏鎹㈤兘浼氬厛娉ㄩ攢锛堟竻鎺夋敞鍏ョ殑鏍峰紡涓?`html` 灞炴€э級鍐嶉噸鏂版敞鍐岋紝妯″瀷閫夋嫨鍣ㄧ殑缃伆浼氶棯涓€涓嬨€?
-- **棣栨鍔犺浇涓嶅啀鍏堟樉绀洪敊璇姸鎬?*锛氱涓€娆?`rpc.get` 杩斿洖鍓嶄笉娓叉煋寮€鍏筹紙姝ゅ墠浼氬厛鏄剧ず"鏈惎鐢?鍐嶇炕鎴愮湡瀹炵姸鎬侊級銆傝澶辫触浠嶄細娓叉煋骞跺甫 `!` 鏍囪銆?
+- **整数型会话 id 不再被提前淘汰**：JS 对象会把整数型键排到最前并按升序枚举，所以「删除后重新赋值」**不会**把它移到末尾——`"0"` 这种 id 刚设置完就会被当成最旧条目淘汰，覆盖**静默消失**（与 0.10.1 修的 `__proto__` 属于同一类静默丢失）。内存里的覆盖表改用 `Map`（插入顺序对所有键形状都精确）；落盘仍是 `{ id: boolean }` 对象，旧文件与客户端契约不变。补了针对整数型 id 的回归断言（旧的容量测试只用 `s${i}`，抓不到）。
+- **非字符串 `sessionId` 不再静默变成全局开关**：`toggle { sessionId: 12345, enabled: false }` 过去会走进"没有会话 id"的分支，把**所有**会话的默认路由关掉，而且回包里没有 `sessionId` 字段，调用方根本看不出走了哪个分支。现在「存在但不是非空字符串」一律返回 `bad-request`，并记一行日志。
+- **`toggle` 的两种参数形状语义统一**：按会话的路径在不传 `enabled` 时会翻转当前有效值，而全局路径过去是**静默 no-op**。现在全局路径同样翻转。
+- **视觉接管不再闪烁**：挂载/卸载与取值更新拆成两个 effect。此前每次切换都会先注销（清掉注入的样式与 `html` 属性）再重新注册，模型选择器的置灰会闪一下。
+- **首次加载不再先显示错误状态**：第一次 `rpc.get` 返回前不渲染开关（此前会先显示"未启用"再翻成真实状态）。读失败仍会渲染并带 `!` 标记。
 
-### 宸ョ▼
+### 工程
 
-- `npm run verify` 鏀逛负**鍙**锛氫骇鐗╂柊椴滃害妫€鏌ョ幇鍦ㄦ妸瀹㈡埛绔?*鏋勫缓鍒颁复鏃舵枃浠?*鍐嶆瘮瀵癸紝涓嶅啀閲嶅啓浠撳簱閲岀殑 `lib/client.js`锛涙瘮瀵瑰墠缁熶竴鎹㈣绗︼紝CRLF 妫€鍑轰笉鍐嶈鎶?浜х墿闄堟棫"銆?
-- 鐗堟湰涓€鑷存€у畧鍗墿灞曞埌鏂囨。锛歚README.md` 涓?`SKILL.md` 鐨勩€屽綋鍓嶇増鏈€嶈蹇呴』涓?`package.json` 涓€鑷淬€傛鍓?README 鍋滃湪 `v0.9.0` 鑰?package.json/CHANGELOG/tag 閮藉凡鏄?0.10.x锛屾棫瀹堝崼鍙牳瀵?CHANGELOG锛屾墍浠ヤ竴鐩存槸缁跨殑銆?
-- 鏂板闅忔満鍖栧樊鍒嗗睘鎬ф祴璇曪紙`npm run fuzz`锛屽彲浼犵瀛愶級锛?00 娆￠殢鏈烘搷浣?脳 12 涓帰閽?id锛堝惈 `__proto__`銆乣constructor`銆佽秴闀夸笌 Unicode id锛夛紝鏈熸湜鍊肩嫭绔嬪湴浠?`state.json` 閲嶇畻銆?
+- `npm run verify` 改为**只读**：产物新鲜度检查现在把客户端**构建到临时文件**再比对，不再重写仓库里的 `lib/client.js`；比对前统一换行符，CRLF 检出不再误报"产物陈旧"。
+- 版本一致性守卫扩展到文档：`README.md` 与 `SKILL.md` 的「当前版本」行必须与 `package.json` 一致。此前 README 停在 `v0.9.0` 而 package.json/CHANGELOG/tag 都已是 0.10.x，旧守卫只核对 CHANGELOG，所以一直是绿的。
+- 新增随机化差分属性测试（`npm run fuzz`，可传种子）：200 次随机操作 × 12 个探针 id（含 `__proto__`、`constructor`、超长与 Unicode id），期望值独立地从 `state.json` 重算。
 
-### 鏂囨。
+### 文档
 
-- README 琛ラ綈琛岄灏忕伅鐨?*鍥涙潯**闅愯棌鏉′欢锛堝綊妗?/ 绌虹櫧 / 姝ｅ湪杩愯 / 鏈夋湭璇伙級锛屾鍓嶅彧鍐欎簡涓ゆ潯銆?
-- 鏂板銆屽凡鐭ラ檺鍒躲€嶄竴鑺傦細璺ㄧ獥鍙ｄ笌澶氳繘绋嬩笉鍚屾锛堝悗鍐欒鐩栨暣寮?`sessions` 琛紝鏃犲悎骞讹級銆佺洰鏍囨ā鍨嬩笉鍦ㄧ洰褰曟椂闈欓粯鍥炶惤锛堝皬鐏弽鏄犵殑鏄紑鍏虫剰鍥捐€岄潪姝ゅ埢蹇呯敓鏁堬級銆佸苟鍙戠偣鍑诲湪鍐欑洏鏈熼棿琚鐢ㄤ笖涓嶆姤閿欍€?
+- README 补齐行首小灯的**四条**隐藏条件（归档 / 空白 / 正在运行 / 有未读），此前只写了两条。
+- 新增「已知限制」一节：跨窗口与多进程不同步（后写覆盖整张 `sessions` 表，无合并）、目标模型不在目录时静默回落（小灯反映的是开关意图而非此刻必生效）、并发点击在写盘期间被禁用且不报错。
 
 ## [0.10.1] - 2026-10-14
 
-### 淇
+### 修复
 
-- 瑕嗙洊琛ㄦ敼鐢?null-prototype 鏄犲皠锛氫細璇?id 鑻ユ槸 `__proto__` 杩欑被鐗规畩閿紝鍦ㄦ櫘閫氬璞′笂璧嬪€间細琚師鍨?setter 闈欓粯鍚炴帀鈥斺€旇鐩栫湅璧锋潵瀛樹笅浜嗐€佸嵈姘镐笉鐢熸晥銆俷ode 绔笌瀹㈡埛绔袱澶勯兘鏀癸紝骞跺姞浜嗗洖褰掓柇瑷€銆?
+- 覆盖表改用 null-prototype 映射：会话 id 若是 `__proto__` 这类特殊键，在普通对象上赋值会被原型 setter 静默吞掉——覆盖看起来存下了、却永不生效。node 端与客户端两处都改，并加了回归断言。
 
 ## [0.10.0] - 2026-10-14
 
-**姣忎細璇濈嫭绔嬬殑閬垮嘲宀楃姸鎬?*锛屽苟鍦ㄤ細璇濆垪琛ㄤ笂鐢ㄤ竴涓皬钃濈伅鏍囧嚭鍝簺浼氳瘽寮€鐫€銆?
+**每会话独立的避峰岗状态**，并在会话列表上用一个小蓝灯标出哪些会话开着。
 
-### 鏂板
+### 新增
 
-- 寮€鍏充粠銆屽叏灞€銆嶆墿灞曚负銆屽叏灞€榛樿 + 姣忎細璇濊鐩栥€嶏細娌℃湁瑕嗙洊鐨勪細璇濊窡闅忓叏灞€榛樿锛屽崟鐙缃繃鐨勪細璇濅互鑷繁鐨勭姸鎬佷负鍑嗐€俙state.json` 閲?`enabled` 鏄粯璁ゅ€硷紝`sessions` 鏄瘡浼氳瘽瑕嗙洊琛紱**娌℃湁 `sessions` 鐨勬棫鏂囦欢琛屼负瀹屽叏涓嶅彉**銆?
-- 浼氳瘽鍒楄〃琛岄灏忕伅锛氭敞鍐屽湪 `sidebar.session.row.leading`锛屼粎褰撹浼氳瘽鐨勬湁鏁堢姸鎬佷负寮€鏃跺嚭鐜帮紙灏忓渾鐐?+ 鏌斿拰澶栧彂鍏?+ 鏋佺紦鎱㈠懠鍚革紝灏婇噸 `prefers-reduced-motion`锛夈€?
-- 浼氳瘽鍐呭紑鍏筹紙composer 杈撳叆鍖哄乏渚э級鏀逛负鎿嶄綔**褰撳墠浼氳瘽**锛?*鍙抽敭**鍙竻闄よ鐩栥€佹仮澶嶄负璺熼殢鍏ㄥ眬榛樿銆備晶杈规爮搴曢儴鐨勫紑鍏充粛鐒舵槸鍏ㄥ眬榛樿銆?
-- 瑕嗙洊琛ㄦ湁涓婇檺锛?00 鏉★紝鎸夋渶杩戝啓鍏ユ窐姹帮級锛岄暱鏈熶娇鐢ㄤ笉浼氭棤闄愬闀裤€?
+- 开关从「全局」扩展为「全局默认 + 每会话覆盖」：没有覆盖的会话跟随全局默认，单独设置过的会话以自己的状态为准。`state.json` 里 `enabled` 是默认值，`sessions` 是每会话覆盖表；**没有 `sessions` 的旧文件行为完全不变**。
+- 会话列表行首小灯：注册在 `sidebar.session.row.leading`，仅当该会话的有效状态为开时出现（小圆点 + 柔和外发光 + 极缓慢呼吸，尊重 `prefers-reduced-motion`）。
+- 会话内开关（composer 输入区左侧）改为操作**当前会话**；**右键**可清除覆盖、恢复为跟随全局默认。侧边栏底部的开关仍然是全局默认。
+- 覆盖表有上限（500 条，按最近写入淘汰），长期使用不会无限增长。
 
-### 鍙樻洿
+### 变更
 
-- `get` RPC 澧炲姞 `sessions`锛堟瘡浼氳瘽瑕嗙洊琛級銆?
-- `toggle` RPC 鏀寔 `{ enabled, sessionId }` 涓?`{ sessionId, inherit: true }`銆?
-- 妯″瀷閫夋嫨鍣ㄧ殑缃伆鏀逛负璺熼殢**褰撳墠浼氳瘽**鐨勬湁鏁堢姸鎬侊紙浼氳瘽鍐呭叆鍙ｄ紭鍏堬級锛屼笉鍐嶅彧鐪嬪叏灞€寮€鍏炽€?
-- 鏃ュ織閲岀殑鎺ョ/鍐崇瓥琛屽甫涓婁細璇?id锛屼究浜庢牳瀵规槸鍝釜浼氳瘽琚矾鐢便€?
+- `get` RPC 增加 `sessions`（每会话覆盖表）。
+- `toggle` RPC 支持 `{ enabled, sessionId }` 与 `{ sessionId, inherit: true }`。
+- 模型选择器的置灰改为跟随**当前会话**的有效状态（会话内入口优先），不再只看全局开关。
+- 日志里的接管/决策行带上会话 id，便于核对是哪个会话被路由。
 
-### 璇存槑涓庡凡鐭ラ檺鍒?
+### 说明与已知限制
 
-- 浼氳瘽 id 鍙栬嚜 `agent.session.header.id`锛坄session.id` 鍚屽€硷級銆傝涓嶅埌鏃舵寜**鍏ㄥ眬榛樿**澶勭悊锛屼笉浼氶潤榛樺叧闂矾鐢便€?
-- 琛岄浣嶇疆鐢卞涓诲喅瀹氾細浼氳瘽**姝ｅ湪杩愯锛堟湁鐘舵€佺偣锛夋垨鏈夋湭璇绘爣璁?*鏃讹紝瀹夸富涓嶆覆鏌撹鎻掓Ы锛屽洜姝ゅ皬鐏湪杩欎簺鏃跺埢涓嶆樉绀恒€傝繖鏄涓荤殑鏉′欢娓叉煋锛屾彃浠朵笉鍘绘敼瀹冦€?
+- 会话 id 取自 `agent.session.header.id`（`session.id` 同值）。读不到时按**全局默认**处理，不会静默关闭路由。
+- 行首位置由宿主决定：会话**正在运行（有状态点）或有未读标记**时，宿主不渲染该插槽，因此小灯在这些时刻不显示。这是宿主的条件渲染，插件不去改它。
 
 ## [0.9.0] - 2026-10-14
 
-棣栦釜鍏紑鐗堟湰锛圴0.9锛夈€?
+首个公开版本（V0.9）。
 
-### 鍔熻兘
+### 功能
 
-- 鎸夋椂闂磋矾鐢憋細绛栫暐 = 鐢熸晥鏄熸湡 + 宄版椂绐楀彛锛涘懡涓嘲鏃剁敤鍓ā鍨嬶紝鍚﹀垯鐢ㄤ富妯″瀷銆?
-- 楂樼骇妯″瀷鏀彺锛堝崌缁村厹搴曪級锛氭墍鏈夌瓥鐣ラ兘鏈懡涓椂浣跨敤銆?
-- 璁剧疆椤典笁妗ｄ笅鎷夛細Provider / 妯″瀷 / 鎬濊€冩。锛涘€欓€夊叏閮ㄦ潵鑷?harness 杩愯鏃剁殑娉ㄥ唽琛紝**API key 涓庤闃呯櫥褰曞悓婧?*锛屾病鏈夌‖缂栫爜鍚嶅崟銆?
-- 宸︿晶銆屽惎鐢ㄩ伩宄板矖銆嶅紑鍏筹紙渚ц竟鏍忓叆鍙?+ 浼氳瘽杈撳叆鍖哄鐢ㄥ叆鍙ｏ級锛屾寜鎺т欢**鑷韩瀹瑰櫒瀹藉害**鑷€傚簲銆?
-- 寮€鍏虫墦寮€鏃讹紝绛栫暐瀵?*妯″瀷涓庢€濊€冩。**鍧囨湁鍐冲畾鏉冿細浼氳瘽閲屽凡鏄惧紡閫夊畾鐨勬ā鍨嬪悓鏍蜂細琚帴绠°€?
-- 妯″瀷绾у厹搴曪細绛栫暐鐩爣涓嶅湪璇?Provider 鐩綍涓椂淇濈暀鍘熸ā鍨嬶紝缁濅笉闃诲璇锋眰锛涚洰褰曞埛鏂板叏绋嬪湪鍚庡彴锛岃姹傝矾寰勪笉绛夊緟缃戠粶銆?
-- 鐗堟湰鍙湪杩愯鏃剁‘璁わ紙璁剧疆椤典笌 `debug.log`锛夈€?
+- 按时间路由：策略 = 生效星期 + 峰时窗口；命中峰时用副模型，否则用主模型。
+- 高级模型支援（升维兜底）：所有策略都未命中时使用。
+- 设置页三档下拉：Provider / 模型 / 思考档；候选全部来自 harness 运行时的注册表，**API key 与订阅登录同源**，没有硬编码名单。
+- 左侧「启用避峰岗」开关（侧边栏入口 + 会话输入区备用入口），按控件**自身容器宽度**自适应。
+- 开关打开时，策略对**模型与思考档**均有决定权：会话里已显式选定的模型同样会被接管。
+- 模型级兜底：策略目标不在该 Provider 目录中时保留原模型，绝不阻塞请求；目录刷新全程在后台，请求路径不等待网络。
+- 版本可在运行时确认（设置页与 `debug.log`）。
 
-### 淇锛?.9.0 瀹氱増鍓嶄慨鎺夛級
+### 修复（0.9.0 定版前修掉）
 
-- **鍓ā鍨嬪舰鐘堕敊閰?*锛氭湇鍔＄鏇炬妸鍓ā鍨嬪啓鎴愬祵濂楃殑 `peak.model = {provider, model, 鈥`锛岃€岃缃〉涓?`lib/text.js` 榛樿瀹氫箟璇荤殑鏄墎骞冲瓧娈?`peak.provider` / `peak.model`銆傚悗鏋滄槸姣忔 get/set 寰€杩斿悗鍓ā鍨嬩笅鎷夊彉绌猴紝涓斾繚瀛樻椂琚潤榛樻浛鎹㈡垚涓绘ā鍨嬨€傜幇鍦ㄨ緭鍑虹粺涓€涓烘墎骞筹紱鏃х殑宓屽鍐欐硶浠嶈兘琚鍏ワ紝骞跺湪涓嬫淇濆瓨鏃舵敼鍐欎负鎵佸钩銆?
-- **鎬濊€冩。涓嶇敓鏁?*锛氭ā鍨嬬浉鍚屼絾鎬濊€冩。涓嶅悓鏃舵浘琚垽瀹氫负"鏃犻渶鏀瑰啓"锛屽鑷寸瓥鐣ラ噷閰嶇殑鎬濊€冩。澶辨晥銆傜幇鍦ㄦ€濊€冩。涓嶅悓鍚屾牱鎸夌瓥鐣ユ敼鍐欍€?
-- **鍔犺浇瀹夊叏鎬?*锛氶潪娉曢厤缃笉鍐嶈鎻掍欢鍔犺浇澶辫触锛岃€屾槸鍥為€€鍒伴粯璁ゅ畾涔夊苟鐣欎竴琛屾棩蹇椼€?
-- **璇锋眰璺緞闆堕樆濉?*锛氳繃鏈熺殑鐩綍鍒锋柊鏇惧彂鐢熷湪璇锋眰璺緞涓婏紙鍚屾鍙戣捣 `listModels`锛夛紝宸茬Щ鍑哄埌涓嬩竴涓畯浠诲姟銆?
-- **浜嬩欢浣滅敤鍩?*锛歚llm/adapters-updated` 琛ヤ笂 `global`锛岄伩鍏嶄緷璧栦綔鐢ㄥ煙榛樿琛屼负銆?
-- **鐣岄潰鏂囨**锛氳嫳鏂囩晫闈笅鏄熸湡鏄剧ず涓枃锛堢‖缂栫爜锛夊凡绉诲叆鏂囨琛紱鏈嶅姟绔牎楠屾姤閿欎腑鏂囧寲骞朵繚鐣欍€岀鍑犳潯绛栫暐銆嶏紱淇濆瓨鍚庣粰鍑烘槑纭殑鎴愬姛/澶辫触鍙嶉銆?
+- **副模型形状错配**：服务端曾把副模型写成嵌套的 `peak.model = {provider, model, …}`，而设置页与 `lib/text.js` 默认定义读的是扁平字段 `peak.provider` / `peak.model`。后果是每次 get/set 往返后副模型下拉变空，且保存时被静默替换成主模型。现在输出统一为扁平；旧的嵌套写法仍能被读入，并在下次保存时改写为扁平。
+- **思考档不生效**：模型相同但思考档不同时曾被判定为"无需改写"，导致策略里配的思考档失效。现在思考档不同同样按策略改写。
+- **加载安全性**：非法配置不再让插件加载失败，而是回退到默认定义并留一行日志。
+- **请求路径零阻塞**：过期的目录刷新曾发生在请求路径上（同步发起 `listModels`），已移出到下一个宏任务。
+- **事件作用域**：`llm/adapters-updated` 补上 `global`，避免依赖作用域默认行为。
+- **界面文案**：英文界面下星期显示中文（硬编码）已移入文案表；服务端校验报错中文化并保留「第几条策略」；保存后给出明确的成功/失败反馈。
 
-### 宸ョ▼
+### 工程
 
-- `lib/text.js` 鏄?*鐣岄潰鏂囨涓庨粯璁ゅ畾涔夌殑鍞竴缁存姢鏂囦欢**锛涘鎴风浜х墿 `lib/client.js` 鐢?`src/build-client.mjs` 鐢熸垚锛屼笉鎵嬪伐缂栬緫銆?
-- 娴嬭瘯锛歚npm run verify` = 濂戠害鑷 + 鍓ā鍨嬪線杩斿洖褰?+ 鏂囨涓庢湰鍦板寲妫€鏌ャ€?
-
+- `lib/text.js` 是**界面文案与默认定义的唯一维护文件**；客户端产物 `lib/client.js` 由 `src/build-client.mjs` 生成，不手工编辑。
+- 测试：`npm run verify` = 契约自检 + 副模型往返回归 + 文案与本地化检查。

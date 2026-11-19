@@ -515,6 +515,68 @@ check('a member spawned for a task is scored by that task on its first turn', as
   if (String(after.value.lastDecision.scoreSource ?? '').startsWith('spawn-task')) throw new Error('spawn task must be consumed once')
 })
 
+check('a declared judgement replaces text scoring', async () => {
+  const host = makeHost()
+  await wait()
+  const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
+  host.emit('agent-teams/member-started', { teamId: 't', sessionId: 'session-member-1', name: '验证者', role: '验证者' })
+  member.startTurn(1)
+  // The text alone would score mid; the declaration says "just run it and record".
+  const execute = taskMessage('m1', { taskId: 't-exec', subject: '执行', description: MID_TEXT, judgement: 'execute' }, ENVELOPE)
+  member.agent.inbox.nextTurn = [execute]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: execute })
+  const got = await host.call('get')
+  eq(got.value.lastDecision.tierReason, 'declared:execute', 'declared tier reason')
+  eq(got.value.lastDecision.scoreSource, 'declared:t-exec:execute', 'task id + declaration recorded')
+  // low tier falls through to the policy: the fixture's low table has an all-day
+  // peak window, so the policy's own peak target is the expected selection.
+  eq(got.value.lastDecision.target, { provider: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'high' }, 'execute -> low tier -> policy table')
+})
+
+check('a failing command does not escalate: execute stays low even for risky text', async () => {
+  const host = makeHost()
+  await wait()
+  const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
+  host.emit('agent-teams/member-started', { teamId: 't', sessionId: 'session-member-1', name: '验证者', role: '验证者' })
+  member.startTurn(1)
+  const risky = taskMessage('m1', { taskId: 't-risk', subject: '跑测试', description: HIGH_TEXT, judgement: 'execute' }, ENVELOPE)
+  member.agent.inbox.nextTurn = [risky]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: risky })
+  const got = await host.call('get')
+  eq(got.value.lastDecision.tier, 'low', 'execute keeps the low tier')
+})
+
+check('adjudicate and coverage map to the high and mid tiers', async () => {
+  const host = makeHost()
+  await wait()
+  const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
+  host.emit('agent-teams/member-started', { teamId: 't', sessionId: 'session-member-1', name: '验证者', role: '验证者' })
+  member.startTurn(1)
+  const coverage = taskMessage('m1', { taskId: 't-cov', subject: '覆盖', description: 'x', judgement: 'coverage' }, ENVELOPE)
+  member.agent.inbox.nextTurn = [coverage]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: coverage })
+  eq(member.selectCalls.at(-1), MID_TARGET, 'coverage -> mid -> Sol High')
+  member.startTurn(2)
+  const adjudicate = taskMessage('m2', { taskId: 't-adj', subject: '裁决', description: 'x', judgement: 'adjudicate' }, ENVELOPE)
+  member.agent.inbox.nextTurn = [adjudicate]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: adjudicate })
+  eq(member.selectCalls.at(-1), HIGH_TARGET, 'adjudicate -> high -> Astra Max')
+})
+
+check('an old task without a declaration still uses text scoring', async () => {
+  const host = makeHost()
+  await wait()
+  const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
+  host.emit('agent-teams/member-started', { teamId: 't', sessionId: 'session-member-1', name: '验证者', role: '验证者' })
+  member.startTurn(1)
+  const legacy = taskMessage('m1', { taskId: 't-old', subject: '改端口', description: MID_TEXT }, ENVELOPE)
+  member.agent.inbox.nextTurn = [legacy]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: legacy })
+  const got = await host.call('get')
+  eq(got.value.lastDecision.tierReason, 'role-tier:验证者:mid', 'text scoring still drives the tier')
+  eq(got.value.lastDecision.scoreSource, 'task:t-old', 'task id recorded')
+})
+
 check('binding failures are reported instead of silently ignored', async () => {
   const host = makeHost()
   await wait()
