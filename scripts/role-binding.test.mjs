@@ -172,6 +172,14 @@ const wrappedTeamMessage = (id, text) => ({
   source: { kind: 'plugin', plugin: '@nanmicoder/dsh-agent-teams' },
   content: [{ type: 'text', text }],
 })
+// A dispatched team task carries its record on the message source; the envelope
+// body (assignment prose + contract) must not influence the score.
+const taskMessage = (id, task, body) => ({
+  id,
+  source: { kind: 'plugin', plugin: '@nanmicoder/dsh-agent-teams', agentTeamsTask: task },
+  content: [{ type: 'text', text: body }],
+})
+const ENVELOPE = 'AgentTeams automatic task assignment from the shared task list.\n\nYou are executing as configured member "验证者".\nDo not start a teammate\'s assigned task.\n\nTeam goal:\ndesign a scalable multi-stage architecture\n\nContract:\nKind: work\nAcceptance: explain the trade-offs and justify the evidence\n'
 const foreignPluginMessage = (id, text) => ({
   id,
   source: { kind: 'plugin', plugin: 'some-other-plugin' },
@@ -430,6 +438,52 @@ check('once a refresh succeeds, the next task applies the role target', async ()
   member.agent.inbox.nextTurn = [second]
   host.emit('agent/inbox/inserted', { agent: member.agent, message: second })
   eq(member.selectCalls, [MID_TARGET], 'the next task selects the role target')
+})
+
+check('a dispatched task is scored from its task record, not the envelope', async () => {
+  const host = makeHost()
+  await wait()
+  const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
+  host.emit('agent-teams/member-started', { teamId: 't', sessionId: 'session-member-1', name: '验证者', role: '验证者' })
+  member.startTurn(1)
+  // The envelope alone would classify as high; the task record is the mid sample.
+  const task = { taskId: 't-mid', subject: '改端口', description: MID_TEXT }
+  const message = taskMessage('m1', task, ENVELOPE)
+  member.agent.inbox.nextTurn = [message]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message })
+  eq(member.selectCalls, [MID_TARGET], 'scored by subject+description')
+  const got = await host.call('get')
+  eq(got.value.lastDecision.scoreSource, 'task:t-mid', 'the task id is recorded for cross-checking')
+})
+
+check('queued dispatches keep their own task text (no cross-talk)', async () => {
+  const host = makeHost()
+  await wait()
+  const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
+  host.emit('agent-teams/member-started', { teamId: 't', sessionId: 'session-member-1', name: '验证者', role: '验证者' })
+  const midMsg = taskMessage('m1', { taskId: 't-mid', subject: '覆盖', description: MID_TEXT }, ENVELOPE)
+  const highMsg = taskMessage('m2', { taskId: 't-high', subject: '裁决', description: HIGH_TEXT }, ENVELOPE)
+  // The host consumes each claimed message, so the inbox holds one at a time.
+  member.agent.inbox.nextTurn = [midMsg]
+  member.startTurn(1)
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: midMsg })
+  member.agent.inbox.nextTurn = [highMsg]
+  member.startTurn(2)
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: highMsg })
+  eq(member.selectCalls, [MID_TARGET, HIGH_TARGET], 'each message scored from its own task record')
+})
+
+check('a message without a task record keeps the envelope-derived behaviour', async () => {
+  const host = makeHost()
+  await wait()
+  const plain = makeAgent({ id: 'session-plain-1' })
+  plain.startTurn(1)
+  const message = foreignPluginMessage('c1', MID_TEXT)
+  plain.agent.inbox.nextTurn = [message]
+  host.emit('agent/inbox/inserted', { agent: plain.agent, message })
+  eq(plain.selectCalls.length, 0, 'plugin context still never routes')
+  const got = await host.call('get')
+  eq(got.value.roles, {}, 'no role')
 })
 
 check('binding failures are reported instead of silently ignored', async () => {
