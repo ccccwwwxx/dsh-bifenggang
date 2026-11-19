@@ -187,16 +187,21 @@ const MID_TARGET = { provider: 'codex', model: 'gpt-6.2-sol', reasoningEffort: '
 const HIGH_TARGET = { provider: 'codex', model: 'gpt-6.2-astra', reasoningEffort: 'max' }
 const IMPLEMENTER_TARGET = { provider: 'deepseek-official', model: 'deepseek-v4-pro', reasoningEffort: 'high' }
 
-check('the welcome turn of a freshly spawned member is not routed', async () => {
+check('the very first message may be the task itself: the role applies immediately', async () => {
   const host = makeHost()
   await wait()
   const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
-  host.emit('subagent/start', { id: 'session-member-1', parentSessionId: 'session-captain-1', provider: 'spawn', local: true })
-  const welcome = teamMessage('w1', 'You are 验证者, a member of the team "t"')
-  member.agent.inbox.nextTurn.push(welcome)
-  host.emit('agent/inbox/inserted', { agent: member.agent, message: welcome })
-  eq(member.selectCalls.length, 0, 'no select on the welcome message')
-  eq(member.getCurrent(), { provider: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'high' }, 'member keeps its creation model')
+  // AgentTeams reserves the child id and binds the role BEFORE spawning, so the
+  // startup prompt (which may be the task body) is already routed by role.
+  const ack = { ok: false, reason: 'no-listener' }
+  host.emit('agent-teams/member-started', { teamId: 'team-1', sessionId: 'session-member-1', name: '验证者', role: '验证者' }, ack)
+  host.emit('subagent/start', { id: 'session-member-1', parentSessionId: 'session-captain-1' })
+  eq(ack, { ok: true, reason: 'bound' }, 'ack bound before spawn')
+  member.startTurn(1)
+  const first = teamMessage('t1', MID_TEXT)
+  member.agent.inbox.nextTurn = [first]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: first })
+  eq(member.selectCalls, [MID_TARGET], 'first message routed by the role rule')
 })
 
 check('member-started binds the role and acknowledges the emitter', async () => {
@@ -214,11 +219,8 @@ check('the first formal task is routed by the role rule, not the tier table', as
   const host = makeHost()
   await wait()
   const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
-  host.emit('subagent/start', { id: 'session-member-1', parentSessionId: 'session-captain-1' })
-  const welcome = teamMessage('w1', 'welcome')
-  member.agent.inbox.nextTurn.push(welcome)
-  host.emit('agent/inbox/inserted', { agent: member.agent, message: welcome })
   host.emit('agent-teams/member-started', { teamId: 'team-1', sessionId: 'session-member-1', name: '验证者', role: '验证者' })
+  host.emit('subagent/start', { id: 'session-member-1', parentSessionId: 'session-captain-1' })
   member.startTurn(1)
   const task = teamMessage('t1', MID_TEXT)
   member.agent.inbox.nextTurn = [task]
@@ -228,11 +230,12 @@ check('the first formal task is routed by the role rule, not the tier table', as
   eq(got.value.lastDecision.tierReason, 'role-tier:验证者:mid', 'why it selected')
 })
 
-check('the same verifier switches from mid to high without re-binding', async () => {
+check('a recovered member keeps its role and re-selects for the new task', async () => {
   const host = makeHost()
   await wait()
+  // Cold resume: the member session already exists; AgentTeams re-announces the
+  // same role, and each new task is classified again (mid -> high).
   const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
-  host.emit('subagent/start', { id: 'session-member-1', parentSessionId: 'session-captain-1' })
   host.emit('agent-teams/member-started', { teamId: 'team-1', sessionId: 'session-member-1', name: '验证者', role: '验证者' })
   member.startTurn(1)
   const mid = teamMessage('t1', MID_TEXT)
@@ -243,6 +246,27 @@ check('the same verifier switches from mid to high without re-binding', async ()
   member.agent.inbox.nextTurn = [high]
   host.emit('agent/inbox/inserted', { agent: member.agent, message: high })
   eq(member.selectCalls, [MID_TARGET, HIGH_TARGET], 'mid then high')
+  // Re-announcing the same role on resume must not disturb or duplicate anything.
+  const ack = { ok: false, reason: 'no-listener' }
+  host.emit('agent-teams/member-started', { teamId: 'team-1', sessionId: 'session-member-1', name: '验证者', role: '验证者' }, ack)
+  eq(ack, { ok: true, reason: 'bound' }, 'resume ack')
+  const got = await host.call('get')
+  eq(got.value.roles, { 'session-member-1': '验证者' }, 'one role, no duplicate entries')
+})
+
+check('an ordinary subagent (no member role) keeps the normal policy', async () => {
+  const host = makeHost()
+  await wait()
+  const child = makeAgent({ id: 'session-child-plain' })
+  host.emit('subagent/start', { id: 'session-child-plain', parentSessionId: 'session-parent' })
+  child.startTurn(1)
+  const message = teamMessage('t1', HIGH_TEXT)
+  child.agent.inbox.nextTurn = [message]
+  host.emit('agent/inbox/inserted', { agent: child.agent, message })
+  if (child.selectCalls.length !== 1) throw new Error('ordinary subagent must still be routed')
+  const got = await host.call('get')
+  if (String(got.value.lastDecision.tierReason).startsWith('role-')) throw new Error('ordinary subagent must not use a role rule')
+  eq(got.value.roles, {}, 'no role bound')
 })
 
 check('the implementer stays on one fixed model whatever the tier', async () => {
