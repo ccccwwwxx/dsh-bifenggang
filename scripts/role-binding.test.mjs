@@ -158,6 +158,18 @@ function makeAgent({ id, provider = 'deepseek-official', model = 'deepseek-flash
 }
 
 const teamMessage = (id, text) => ({ id, source: { kind: 'agent-teams' }, content: [{ type: 'text', text }] })
+// 0.2.2-rc.5 persists plugin-authored messages as this wrapper; AgentTeams uses
+// it for every member prompt on such hosts.
+const wrappedTeamMessage = (id, text) => ({
+  id,
+  source: { kind: 'plugin', plugin: '@nanmicoder/dsh-agent-teams' },
+  content: [{ type: 'text', text }],
+})
+const foreignPluginMessage = (id, text) => ({
+  id,
+  source: { kind: 'plugin', plugin: 'some-other-plugin' },
+  content: [{ type: 'text', text }],
+})
 const userMessage = (id, text) => ({ id, source: { kind: 'user' }, content: [{ type: 'text', text }] })
 // The catalog is warmed asynchronously after apply; a decision taken before it is
 // warm is deliberately not applied (catalog-cold), so give it room.
@@ -344,6 +356,30 @@ check('roles survive a restart (new process, same DSH_HOME)', async () => {
   member.agent.inbox.nextTurn = [task]
   for (const fn of listeners.get('agent/inbox/inserted') ?? []) fn({ agent: member.agent, message: task })
   eq(member.selectCalls, [MID_TARGET], 'binding still applies after restart')
+})
+
+check('the plugin-wrapped AgentTeams dispatch is intent (0.2.2-rc.5 shape)', async () => {
+  const host = makeHost()
+  await wait()
+  const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
+  host.emit('agent-teams/member-started', { teamId: 'team-1', sessionId: 'session-member-1', name: '验证者', role: '验证者' })
+  member.startTurn(1)
+  const task = wrappedTeamMessage('t1', MID_TEXT)
+  member.agent.inbox.nextTurn = [task]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: task })
+  eq(member.selectCalls, [MID_TARGET], 'wrapped dispatch routed by role')
+})
+
+check('another plugin context message stays non-intent', async () => {
+  const host = makeHost()
+  await wait()
+  const member = makeAgent({ id: 'session-member-1' })
+  host.emit('agent-teams/member-started', { teamId: 'team-1', sessionId: 'session-member-1', name: '验证者', role: '验证者' })
+  member.startTurn(1)
+  const ctx = foreignPluginMessage('c1', MID_TEXT)
+  member.agent.inbox.nextTurn = [ctx]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: ctx })
+  eq(member.selectCalls.length, 0, 'foreign plugin context never routes')
 })
 
 check('binding failures are reported instead of silently ignored', async () => {
