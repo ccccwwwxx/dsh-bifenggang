@@ -486,6 +486,35 @@ check('a message without a task record keeps the envelope-derived behaviour', as
   eq(got.value.roles, {}, 'no role')
 })
 
+check('a member spawned for a task is scored by that task on its first turn', async () => {
+  const host = makeHost()
+  await wait()
+  const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
+  // The host creates the child's first prompt itself, so the task rides on the
+  // binding event; the prompt body is the verbose assignment envelope.
+  host.emit('agent-teams/member-started', {
+    teamId: 't',
+    sessionId: 'session-member-1',
+    name: '验证者',
+    role: '验证者',
+    task: { taskId: 't-spawn', subject: '改端口', description: MID_TEXT },
+  })
+  member.startTurn(1)
+  const first = { id: 'p1', source: { kind: 'user' }, content: [{ type: 'text', text: ENVELOPE }] }
+  member.agent.inbox.nextTurn = [first]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: first })
+  eq(member.selectCalls, [MID_TARGET], 'scored by the spawn task')
+  const got = await host.call('get')
+  eq(got.value.lastDecision.scoreSource, 'spawn-task:t-spawn', 'source recorded')
+  // Consumed exactly once: the next turn falls back to normal scoring.
+  member.startTurn(2)
+  const second = { id: 'p2', source: { kind: 'user' }, content: [{ type: 'text', text: ENVELOPE }] }
+  member.agent.inbox.nextTurn = [second]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: second })
+  const after = await host.call('get')
+  if (String(after.value.lastDecision.scoreSource ?? '').startsWith('spawn-task')) throw new Error('spawn task must be consumed once')
+})
+
 check('binding failures are reported instead of silently ignored', async () => {
   const host = makeHost()
   await wait()
