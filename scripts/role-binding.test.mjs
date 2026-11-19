@@ -208,7 +208,11 @@ check('the very first message may be the task itself: the role applies immediate
   const ack = { ok: false, reason: 'no-listener' }
   host.emit('agent-teams/member-started', { teamId: 'team-1', sessionId: 'session-member-1', name: '验证者', role: '验证者' }, ack)
   host.emit('subagent/start', { id: 'session-member-1', parentSessionId: 'session-captain-1' })
-  eq(ack, { ok: true, reason: 'bound' }, 'ack bound before spawn')
+  eq({ ok: ack.ok, reason: ack.reason }, { ok: true, reason: 'bound' }, 'ack bound before spawn')
+  // The emitter awaits this before creating the child: it must be a real promise
+  // that settles, not undefined (that is what makes the first task warm).
+  if (typeof ack.ready?.then !== 'function') throw new Error('ack.ready must be a promise for role rules')
+  await ack.ready
   member.startTurn(1)
   const first = teamMessage('t1', MID_TEXT)
   member.agent.inbox.nextTurn = [first]
@@ -222,7 +226,7 @@ check('member-started binds the role and acknowledges the emitter', async () => 
   host.emit('subagent/start', { id: 'session-member-1', parentSessionId: 'session-captain-1' })
   const ack = { ok: false, reason: 'no-listener' }
   host.emit('agent-teams/member-started', { teamId: 'team-1', sessionId: 'session-member-1', name: '验证者', role: '验证者' }, ack)
-  eq(ack, { ok: true, reason: 'bound' }, 'ack')
+  eq({ ok: ack.ok, reason: ack.reason }, { ok: true, reason: 'bound' }, 'ack')
   const got = await host.call('get')
   eq(got.value.roles, { 'session-member-1': '验证者' }, 'role persisted')
 })
@@ -261,7 +265,7 @@ check('a recovered member keeps its role and re-selects for the new task', async
   // Re-announcing the same role on resume must not disturb or duplicate anything.
   const ack = { ok: false, reason: 'no-listener' }
   host.emit('agent-teams/member-started', { teamId: 'team-1', sessionId: 'session-member-1', name: '验证者', role: '验证者' }, ack)
-  eq(ack, { ok: true, reason: 'bound' }, 'resume ack')
+  eq({ ok: ack.ok, reason: ack.reason }, { ok: true, reason: 'bound' }, 'resume ack')
   const got = await host.call('get')
   eq(got.value.roles, { 'session-member-1': '验证者' }, 'one role, no duplicate entries')
 })

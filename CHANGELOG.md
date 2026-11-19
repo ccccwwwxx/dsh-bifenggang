@@ -16,6 +16,23 @@
 
 **1.0 的条件**：路由语义与配置格式冻结，并经过若干个版本的实际使用。在那之前的破坏性变更会写在下面。
 
+## [0.17.3] - 2026-11-20
+
+**绑定可等待**：让首条任务在**冷启动**下也能按角色选模。
+
+### 修复
+
+- `agent-teams/member-started` 的 ack 现在带 `ready`（Promise）：绑定角色时立刻预热该角色所有
+  目标（`target` + `tiers.*`）的模型目录与 reasoning effort。AgentTeams 在创建子会话前 `await`
+  这个 Promise（上限 10s），所以第一条消息到达时缓存已经是热的。
+- 根因记录：headless/冷启动时 provider 适配器在 `apply` 之后才注册，首次派单会命中
+  `catalog-cold`/`effort-cold`，路由器按既有安全策略「不切」→ 首轮沿用创建模型。这是 0.17.2
+  实机验证里「实现者计划 v4-pro@high、实际 flash@high」的原因。
+
+### 验证
+
+- `scripts/role-binding.test.mjs`：ack.ready 必须是可等待的 Promise（新增断言），其余 12 项通过。
+
 ## [0.17.2] - 2026-11-20
 
 **识别 0.2.2-rc.5 的 `plugin` 包装来源**——这是成员派单一直没被路由的真正原因。
