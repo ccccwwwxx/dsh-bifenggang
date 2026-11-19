@@ -84,15 +84,22 @@ function makeHost(options = {}) {
 
   const listeners = new Map()
   const routes = new Map()
+  const gate = options.gate ?? { fail: false }
   const llm = {
     listProviders: () => PROVIDERS,
-    listModels: async (provider) => MODELS[provider] ?? [],
-    resolveModelInfo: async (provider, id) => ({
-      provider,
-      id,
-      name: id,
-      reasoning: { efforts: EFFORTS.map((effort) => ({ id: effort, name: effort })) },
-    }),
+    listModels: async (provider) => {
+      if (gate.fail === true) throw new Error('injected catalog failure')
+      return MODELS[provider] ?? []
+    },
+    resolveModelInfo: async (provider, id) => {
+      if (gate.fail === true) throw new Error('injected effort failure')
+      return {
+        provider,
+        id,
+        name: id,
+        reasoning: { efforts: EFFORTS.map((effort) => ({ id: effort, name: effort })) },
+      }
+    },
   }
   const agentsService = { turnBoundaryOf: (session) => session.__boundary }
   const connection = { fetch: { register: (route) => { routes.set(route.path, route); return () => {} } } }
@@ -384,6 +391,45 @@ check('another plugin context message stays non-intent', async () => {
   member.agent.inbox.nextTurn = [ctx]
   host.emit('agent/inbox/inserted', { agent: member.agent, message: ctx })
   eq(member.selectCalls.length, 0, 'foreign plugin context never routes')
+})
+
+check('a continued member keeps its model when the catalog is cold, with the reason recorded', async () => {
+  const gate = { fail: true }
+  const host = makeHost({ gate })
+  await wait()
+  const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
+  host.emit('agent-teams/member-started', { teamId: 't', sessionId: 'session-member-1', name: '验证者', role: '验证者' })
+  member.startTurn(1)
+  const task = teamMessage('t1', MID_TEXT)
+  member.agent.inbox.nextTurn = [task]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: task })
+  eq(member.selectCalls.length, 0, 'unverified target is never selected')
+  const got = await host.call('get')
+  eq(got.value.lastDecision.warningKind, 'unverified', 'reason recorded')
+  eq(got.value.lastDecision.target, MID_TARGET, 'the intended role target is recorded')
+})
+
+check('once a refresh succeeds, the next task applies the role target', async () => {
+  const gate = { fail: true }
+  const host = makeHost({ gate })
+  await wait()
+  const member = makeAgent({ id: 'session-member-1', provider: 'codex', model: 'gpt-6.2-sol', effort: 'high' })
+  host.emit('agent-teams/member-started', { teamId: 't', sessionId: 'session-member-1', name: '验证者', role: '验证者' })
+  member.startTurn(1)
+  const first = teamMessage('t1', MID_TEXT)
+  member.agent.inbox.nextTurn = [first]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: first })
+  eq(member.selectCalls.length, 0, 'cold catalog: no select')
+  // The catalog comes back (an adapter change clears and re-warms it, like the
+  // real host does when a provider finishes registering).
+  gate.fail = false
+  host.emit('llm/adapters-updated', {})
+  await wait(400)
+  member.startTurn(2)
+  const second = teamMessage('t2', MID_TEXT)
+  member.agent.inbox.nextTurn = [second]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: second })
+  eq(member.selectCalls, [MID_TARGET], 'the next task selects the role target')
 })
 
 check('binding failures are reported instead of silently ignored', async () => {
