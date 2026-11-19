@@ -16,6 +16,38 @@
 
 **1.0 的条件**：路由语义与配置格式冻结，并经过若干个版本的实际使用。在那之前的破坏性变更会写在下面。
 
+## [0.17.0] - 2026-11-20
+
+**角色规则（roleRules）+ 成员角色绑定**。用于 AgentTeams：验证者/实现者这类团队角色不再被
+三档峰谷表随机改模型，同时普通会话完全不受影响。
+
+### 功能
+
+- **policy v2 `roleRules`**（默认 `[]`）：每条规则按 `name`（+ `match` 别名）匹配会话角色，三种形态：
+  - `target`：每轮固定模型（例：实现者 → `deepseek-official/deepseek-v4-pro@high`）；
+  - `tiers.{low,mid,high}`：按档位分别指定，**未列出的档位回落到原峰谷策略**
+    （例：验证者 mid → `codex/gpt-6.2-sol@high`、high → `codex/gpt-6.2-astra@max`，low 仍走峰谷）；
+  - `decouple: true`：完全不干预该会话（成员用自己的团队模型）。
+- **优先级**：单 Session 显式覆盖（`sessions[id]`）> 角色规则 > 全局峰谷；关闭全局开关时角色规则同样不生效。
+- **state v2 `roles`**：`sessionId -> 角色名`，含 `rolesUpdatedAt` 与**独立** `roleTombstones`
+  （清角色不会误清会话开关），逐键较新合并、上限淘汰、重启后仍有效。
+- **绑定时序**（关键）：`subagent/start`（同步，早于首条消息）标记「成员待绑定」→ 该成员的
+  **欢迎消息不路由**（沿用创建时的模型）→ AgentTeams 在拿到 `childId` 后同步 emit
+  `agent-teams/member-started {teamId, sessionId, name, role}` → 路由落库。因此**第一条正式任务
+  消息之前**绑定一定完成，且不依赖任何固定延时。
+- **绑定失败可见**：emit 带可变 ack 对象，监听方同步填写 `{ok, reason}`；未绑定/无角色/无匹配规则
+  分别是 `missing-session-id` / `no-role` / `no-matching-rule`，并写入 `debug.log`。
+- **RPC**：`get.roles`、`setRole`（返回命中规则，供操作者查询当前生效规则）。
+- **effort 预热**：角色规则的 `target`/`tiers` 目标也会预热 `resolveModelInfo`，避免首条消息
+  因 `effort-cold` 保留旧模型（看起来像规则没生效）。
+
+### 兼容 / 已知边界
+
+- `schemaVersion` 仍为 2；旧 `policy.json` 无 `roleRules` 时行为完全不变（默认空规则）。
+- 自动绑定依赖 AgentTeams 侧补丁 `dsh-agent-teams` 0.1.32-pv.1（本地分支，仅新增一条
+  `member-started` 通知；未打补丁时绑定事件不会到达，角色规则不会被触发，其余功能正常）。
+- 欢迎消息不路由是**有意的**：此时角色尚未绑定，按成员创建模型运行最安全。
+
 ## [0.16.1] - 2026-11-19
 
 **子智能体路由修复 + 节日校验/UTC 钳制 + 首启引导 + `get.firstRun`**。
