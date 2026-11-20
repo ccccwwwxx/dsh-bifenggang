@@ -28,6 +28,17 @@
 决策记录 `tierReason=declared:<judgement>` 与 `scoreSource=declared:<taskId>:<judgement>`，
 便于发现派单标错。
 
+## [0.17.8] - 2026-11-20
+
+**声明优先于成员创建时的 max 基线**：修掉“execute 任务被 Astra Max 兜底”的优先级冲突。
+
+- 派单任务带 `judgement` 时，档位由声明决定；即使成员会话是用
+  `reasoningEffort=max` 创建的，也不再走 `max-advanced` 轴。
+- 单 Session 显式覆盖与角色规则仍然优先于声明；普通用户会话没有声明，
+  “我选了 Max 就别降我”的行为不变。
+- 抑制时写 `declared-overrides-max` 调试行，便于核对是哪一条任务声明把
+  Max 基线压回低/中档。
+
 ## [0.17.6] - 2026-11-20
 
 **新成员首单按派单任务评分**：宿主自己生成子会话的第一条提示，任务记录无法挂在它上面，

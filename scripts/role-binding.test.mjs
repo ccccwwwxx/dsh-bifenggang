@@ -533,6 +533,44 @@ check('a declared judgement replaces text scoring', async () => {
   eq(got.value.lastDecision.target, { provider: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'high' }, 'execute -> low tier -> policy table')
 })
 
+check('a declared judgement outranks a member created at max reasoning', async () => {
+  const policy = {
+    ...POLICY,
+    targets: {
+      low: {
+        valley: { provider: 'deepseek-official', model: 'deepseek-flash', reasoningEffort: 'low' },
+        costRouting: false,
+        peak: { enabled: false },
+      },
+      mid: {
+        valley: { provider: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'high' },
+        costRouting: false,
+        peak: { enabled: false },
+      },
+      high: {
+        valley: { provider: 'codex', model: 'gpt-6.2-astra', reasoningEffort: 'max' },
+        costRouting: false,
+        peak: { enabled: false },
+      },
+    },
+    roleRules: [],
+  }
+  const host = makeHost({ policy })
+  await wait()
+  // This is the integrator shape seen on 81: the member was created at max and
+  // has no role rule. The declaration, not the creation snapshot, must decide.
+  const member = makeAgent({ id: 'session-integrator-max', provider: 'deepseek-official', model: 'deepseek-flash', effort: 'max' })
+  member.startTurn(1)
+  const execute = taskMessage('m1', { taskId: 't-exec-max', subject: '记录退出码', description: '执行并记录结果', judgement: 'execute' }, ENVELOPE)
+  member.agent.inbox.nextTurn = [execute]
+  host.emit('agent/inbox/inserted', { agent: member.agent, message: execute })
+  const got = await host.call('get')
+  eq(got.value.lastDecision.tierReason, 'declared:execute', 'declaration still drives the tier')
+  eq(got.value.lastDecision.axis, 'tier', 'max baseline must not force the advanced axis')
+  eq(got.value.lastDecision.target, { provider: 'deepseek-official', model: 'deepseek-flash', reasoningEffort: 'low' }, 'execute -> low target')
+  if (!host.debugLog().includes('declared-overrides-max')) throw new Error('max suppression must be auditable in debug.log')
+})
+
 check('a failing command does not escalate: execute stays low even for risky text', async () => {
   const host = makeHost()
   await wait()
